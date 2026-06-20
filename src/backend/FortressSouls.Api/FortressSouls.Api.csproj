@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <ProjectReference Include="..\FortressSouls.Application\FortressSouls.Application.csproj" />
+    <ProjectReference Include="..\FortressSouls.DwarfFortress\FortressSouls.DwarfFortress.csproj" />
+    <ProjectReference Include="..\FortressSouls.Llm\FortressSouls.Llm.csproj" />
+    <ProjectReference Include="..\FortressSouls.Prompting\FortressSouls.Prompting.csproj" />
+    <ProjectReference Include="..\FortressSouls.Observability\FortressSouls.Observability.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+</Project>

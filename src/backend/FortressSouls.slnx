@@ -1,0 +1,10 @@
+<Solution>
+  <Project Path="FortressSouls.Api/FortressSouls.Api.csproj" />
+  <Project Path="FortressSouls.Application/FortressSouls.Application.csproj" />
+  <Project Path="FortressSouls.Domain/FortressSouls.Domain.csproj" />
+  <Project Path="FortressSouls.DwarfFortress/FortressSouls.DwarfFortress.csproj" />
+  <Project Path="FortressSouls.Llm/FortressSouls.Llm.csproj" />
+  <Project Path="FortressSouls.Observability/FortressSouls.Observability.csproj" />
+  <Project Path="FortressSouls.Prompting/FortressSouls.Prompting.csproj" />
+  <Project Path="FortressSouls.Tests/FortressSouls.Tests.csproj" />
+</Solution>
