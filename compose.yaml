@@ -1,0 +1,8 @@
+services:
+  aspire-dashboard:
+    image: mcr.microsoft.com/dotnet/aspire-dashboard:latest
+    container_name: fortress-souls-aspire-dashboard
+    ports:
+      - "127.0.0.1:18888:18888"
+      - "127.0.0.1:4317:18889"
+      - "127.0.0.1:4318:18890"

@@ -7,15 +7,17 @@ public sealed record HealthResponse(
     string Status,
     string Version,
     string Adapter,
-    string Provider)
+    string Provider,
+    string Observability)
 {
     /// <summary>
     /// Create a basic health response with default adapter and provider status.
     /// </summary>
-    public static HealthResponse CreateBasic() =>
+    public static HealthResponse CreateBasic(string observability = "ConsoleFallback") =>
         new(
             Status: "ok",
             Version: "0.1.0",
             Adapter: "NotConfigured",
-            Provider: "NotConfigured");
+            Provider: "NotConfigured",
+            Observability: observability);
 }
