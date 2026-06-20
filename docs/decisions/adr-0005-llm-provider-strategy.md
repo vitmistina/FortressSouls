@@ -5,7 +5,7 @@ Date: 2026-06-19
 
 ## Context
 
-DwarfTalk v0.1 needs one real LLM provider for plain text dwarf chat.
+FortressSouls v0.1 needs one real LLM provider for plain text dwarf chat.
 
 The application must preserve the deterministic/probabilistic seam:
 

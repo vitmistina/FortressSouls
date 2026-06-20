@@ -6,7 +6,7 @@ Spike: R-004 Local observability path
 
 ## Context
 
-DwarfTalk / Fortress Souls v0.1 needs observability from the first backend slice.
+FortressSouls v0.1 needs observability from the first backend slice.
 
 The app must make it easy to answer:
 
@@ -158,7 +158,7 @@ Use OTLP export when an endpoint is configured:
 ```text
 OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
 OTEL_EXPORTER_OTLP_PROTOCOL=grpc
-OTEL_SERVICE_NAME=DwarfTalk.Api
+OTEL_SERVICE_NAME=FortressSouls.Api
 ```
 
 When OTLP is not configured or the dashboard is unavailable, the API should still run. Telemetry export must not become a product startup dependency.

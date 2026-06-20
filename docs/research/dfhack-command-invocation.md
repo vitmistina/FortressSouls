@@ -94,7 +94,7 @@ DFHack path:
 C:\Program Files (x86)\Steam\steamapps\common\DFHack\hack
 
 Repo / research path:
-C:\coding\DwarfTalk
+C:\coding\FortressSouls
 
 DFHack command runner:
 C:\Program Files (x86)\Steam\steamapps\common\DFHack\hack\dfhack-run.exe
@@ -161,14 +161,14 @@ print(json.encode({
 Command:
 
 ```powershell
-.\dfhack-run.exe C:\coding\DwarfTalk\research\diagnose.lua
+.\dfhack-run.exe C:\coding\FortressSouls\research\diagnose.lua
 ```
 
 Observed output:
 
 ```text
-Replacing backslashes with forward slashes in "C:\coding\DwarfTalk\research\diagnose.lua"
-C:/coding/DwarfTalk/research/diagnose.lua is not a recognized command.
+Replacing backslashes with forward slashes in "C:\coding\FortressSouls\research\diagnose.lua"
+C:/coding/FortressSouls/research/diagnose.lua is not a recognized command.
 ```
 
 Conclusion:

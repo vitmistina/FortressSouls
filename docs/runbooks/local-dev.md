@@ -1,7 +1,7 @@
 # Local Development Runbook
 
 Status: Draft  
-Applies to: DwarfTalk / Fortress Souls v0.1  
+Applies to: FortressSouls v0.1  
 Related ADR: `docs/decisions/adr-0004-observability.md`
 
 ## Purpose
@@ -41,7 +41,7 @@ For local telemetry to Aspire Dashboard:
 ```powershell
 $env:OTEL_EXPORTER_OTLP_ENDPOINT = "http://localhost:4317"
 $env:OTEL_EXPORTER_OTLP_PROTOCOL = "grpc"
-$env:OTEL_SERVICE_NAME = "DwarfTalk.Api"
+$env:OTEL_SERVICE_NAME = "FortressSouls.Api"
 ```
 
 Telemetry export must never be required for the app to start.
@@ -178,7 +178,7 @@ After calling `/api/health`, verify:
 
 - a trace exists for the HTTP request,
 - structured logs include `correlationId`,
-- service name appears as `DwarfTalk.Api` or equivalent,
+- service name appears as `FortressSouls.Api` or equivalent,
 - no secrets appear in logs,
 - no full prompt appears in logs.
 

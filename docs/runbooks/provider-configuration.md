@@ -66,7 +66,7 @@ Invoke-RestMethod `
     "Authorization" = "Bearer $env:OPENROUTER_API_KEY"
     "Content-Type" = "application/json"
     "HTTP-Referer" = "http://localhost:5173"
-    "X-Title" = "DwarfTalk"
+    "X-Title" = "FortressSouls"
   } `
   -Body $body
 ```

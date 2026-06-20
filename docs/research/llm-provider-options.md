@@ -10,7 +10,7 @@ What real LLM provider should v0.1 implement first?
 
 ## v0.1 constraints
 
-DwarfTalk v0.1 is deliberately simple.
+FortressSouls v0.1 is deliberately simple.
 
 v0.1 supports:
 

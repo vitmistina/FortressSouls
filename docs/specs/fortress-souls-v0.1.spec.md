@@ -1350,31 +1350,35 @@ Create the first useful set of agent primitives.
 Create:
 
 ```text
-agent/instructions/backend.instructions.md
-agent/instructions/frontend.instructions.md
-agent/instructions/testing.instructions.md
-agent/instructions/observability.instructions.md
-agent/instructions/dfhack.instructions.md
-agent/instructions/prompting.instructions.md
+.agents/instructions/backend.instructions.md
+.agents/instructions/frontend.instructions.md
+.agents/instructions/testing.instructions.md
+.agents/instructions/observability.instructions.md
+.agents/instructions/dfhack.instructions.md
+.agents/instructions/prompting.instructions.md
 
-agent/agents/architect.agent.md
-agent/agents/backend-dev.agent.md
-agent/agents/frontend-dev.agent.md
-agent/agents/dfhack-researcher.agent.md
-agent/agents/reviewer.agent.md
+.agents/agents/architect.agent.md
+.agents/agents/backend-dev.agent.md
+.agents/agents/frontend-dev.agent.md
+.agents/agents/dfhack-researcher.agent.md
+.agents/agents/reviewer.agent.md
 
-agent/skills/modular-monolith-boundaries/SKILL.md
-agent/skills/prompt-contracts/SKILL.md
-agent/skills/observability-first/SKILL.md
-agent/skills/dfhack-adapter-safety/SKILL.md
+.agents/skills/modular-monolith-boundaries/SKILL.md
+.agents/skills/prompt-contracts/SKILL.md
+.agents/skills/observability-first/SKILL.md
+.agents/skills/dfhack-adapter-safety/SKILL.md
 
-agent/prompts/implement-backlog-item.prompt.md
-agent/prompts/review-backlog-item.prompt.md
-agent/prompts/research-spike.prompt.md
-agent/prompts/update-memory.prompt.md
+.agents/prompts/implement-backlog-item.prompt.md
+.agents/prompts/review-backlog-item.prompt.md
+.agents/prompts/research-spike.prompt.md
+.agents/prompts/update-memory.prompt.md
 ```
 
 Each primitive should be short, scoped, and useful.
+
+2 Extend/update AGENTS.md
+
+It should be short, scoped and useful, while demanding reasonable engineering best practices. Test coverage, et cetera.
 
 ### Out of scope
 
