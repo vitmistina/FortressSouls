@@ -15,7 +15,7 @@ FortressSouls v0.1 is deliberately simple.
 v0.1 supports:
 
 - plain chat turns,
-- one selected dwarf,
+- one dwarf selected from the backend list in the web UI,
 - one configured model,
 - deterministic prompt assembly,
 - model output as prose only.

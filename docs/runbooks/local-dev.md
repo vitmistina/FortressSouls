@@ -235,14 +235,15 @@ Stop immediately. Treat this as a safety defect.
 
 ## Later optional path: Aspire AppHost
 
-B-006 may add:
+B-006 uses repository scripts and does not add AppHost or ServiceDefaults. A
+later accepted decision may add:
 
 ```text
 src/backend/FortressSouls.AppHost
 src/backend/FortressSouls.ServiceDefaults
 ```
 
-This is acceptable if it makes one-command startup easier.
+This is acceptable only if the script-based workflow proves insufficient.
 
 It must not:
 

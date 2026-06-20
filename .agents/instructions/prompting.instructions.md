@@ -8,7 +8,7 @@ applyTo: "src/**/prompt**"
 Scope: prompt contracts, assembly, previews, and prompt tests.
 
 - Keep assembly deterministic and separate from model invocation.
-- Use only the selected dwarf state, current in-memory conversation, static guide, and player message.
+- Use only the validated state for the browser-selected dwarf, current in-memory conversation, static guide, and player message.
 - Exclude secrets, hidden fortress state, tools, persistence, and raw DFHack data by default.
 - Keep template and schema versions explicit.
 - Treat prompt changes as contract changes with focused or golden tests.

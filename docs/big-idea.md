@@ -235,7 +235,7 @@ Version 0.1 should avoid persistence, tools, councils, promises, voting, knowled
 2. The player starts the separate Fortress Souls web app.
 3. The web app connects to the local DFHack adapter.
 4. The web app displays a list of current dwarves.
-5. The player selects one dwarf.
+5. The player selects one dwarf in the web UI.
 6. The app extracts a curated dwarf-state snapshot.
 7. The app assembles a prompt from:
 
@@ -246,6 +246,9 @@ Version 0.1 should avoid persistence, tools, councils, promises, voting, knowled
 8. The player chats with the dwarf.
 9. The response is displayed in the web app.
 10. The conversation exists only for the current session unless basic debug logging is explicitly enabled.
+
+The web UI owns selection from the adapter-provided list. Version 0.1 does not
+read or depend on the unit currently highlighted in the Dwarf Fortress UI.
 
 ### Version 0.1 included capabilities
 
@@ -406,8 +409,9 @@ Developer logs are diagnostic artifacts, not gameplay memory.
 #### Dwarf selection
 
 * The web app shows a list of dwarves from the current fortress.
-* The player can select one dwarf.
+* The player can select one dwarf in the web UI.
 * The selected dwarf can be refreshed.
+* Selection does not depend on the unit highlighted in the Dwarf Fortress UI.
 
 #### State extraction
 
@@ -1778,7 +1782,7 @@ Stored conversations must record which versions produced them once persistent co
 * Web app starts locally.
 * Web app shows DFHack connection status.
 * Web app shows a list of dwarves.
-* Player can select a dwarf.
+* Player can select a dwarf in the web UI.
 * Player can see the current selected dwarf.
 * Player can chat with the selected dwarf.
 * Player can clear the current chat session.
@@ -1787,7 +1791,7 @@ Stored conversations must record which versions produced them once persistent co
 ### DFHack adapter
 
 * Can list current dwarves.
-* Can extract a selected dwarf snapshot.
+* Can extract a snapshot by the validated browser-selected dwarf ID.
 * Returns schema-versioned JSON.
 * Handles missing or invalid dwarf IDs safely.
 * Does not expose write commands.

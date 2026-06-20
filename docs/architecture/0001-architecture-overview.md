@@ -17,6 +17,9 @@ This repository is being reconciled into the Fortress Souls v0.1 scaffold around
 
 - Modular monolith monorepo.
 - Read-only DFHack integration.
+- DFHack adapters list eligible dwarves and fetch a snapshot by validated dwarf
+  ID; the browser owns selection and does not depend on the unit highlighted in
+  Dwarf Fortress.
 - Deterministic data contracts feeding prompt assembly.
 - Observability from the first backend slice.
 

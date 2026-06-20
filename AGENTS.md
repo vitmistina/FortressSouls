@@ -3,9 +3,9 @@
 ## Purpose
 
 Fortress Souls v0.1 is a local, read-only companion for Dwarf Fortress. It
-extracts a validated snapshot of the dwarf currently selected in the game,
-assembles a deterministic prompt, and supports an in-memory chat with that
-dwarf through one configured LLM provider.
+lists eligible dwarves, lets the player select one in the web UI, extracts a
+validated snapshot for that dwarf, assembles a deterministic prompt, and
+supports an in-memory chat with that dwarf through one configured LLM provider.
 
 The repository is a modular monolith in a monorepo. Optimize for a dependable
 vertical slice, clear module boundaries, fast local feedback, and code that a
@@ -33,13 +33,15 @@ surface the conflict instead of choosing silently.
 
 In scope:
 
-- Read-only extraction of the currently selected dwarf.
+- Read-only listing of eligible dwarves and snapshot extraction by validated
+  dwarf ID after browser-side selection.
 - Versioned, validated dwarf snapshot contracts.
 - Deterministic prompt assembly from snapshot, portrayal rules, static guidance,
   and the active in-memory conversation.
 - Fake adapters and fixtures for offline development and deterministic tests.
 - One real, configured LLM provider behind an application-owned interface.
-- A local web chat UI that clearly identifies the selected dwarf.
+- A local web UI that owns dwarf selection and clearly identifies the selected
+  dwarf throughout the in-memory chat.
 - Structured logs, traces, metrics, diagnostics, and operational runbooks.
 
 Out of scope unless a later accepted backlog item explicitly adds it:

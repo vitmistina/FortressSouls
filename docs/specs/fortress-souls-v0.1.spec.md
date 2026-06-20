@@ -20,7 +20,7 @@ Version 0.1 proves the smallest useful loop:
 1. Start the local web app.
 2. Connect to a Dwarf Fortress data source.
 3. Show a list of dwarves.
-4. Select one dwarf.
+4. Select one dwarf in the web UI.
 5. Extract a curated dwarf-state snapshot.
 6. Assemble a prompt from:
 
@@ -32,6 +32,11 @@ Version 0.1 proves the smallest useful loop:
 7. Send the prompt to an LLM provider.
 8. Display the dwarf’s response.
 9. Continue the chat during the current session.
+
+The frontend owns dwarf selection. The backend lists eligible dwarves and
+fetches a snapshot by validated dwarf ID. v0.1 does not read or depend on the
+unit currently highlighted in the Dwarf Fortress UI. Switching the browser
+selection starts or explicitly resets the in-memory chat session.
 
 The release is successful if the player says:
 
@@ -183,11 +188,13 @@ The UI is simple:
 
 ## 3.3 Local orchestration
 
-Use one of these, in order of preference:
+Use thin repository scripts to start the backend and frontend and to run the
+canonical format/test/check commands. Use the standalone Aspire Dashboard as
+an optional local telemetry viewer.
 
-1. **Aspire AppHost** for local orchestration and dashboard-friendly developer experience.
-2. **Docker Compose** with Aspire Dashboard standalone or OpenTelemetry Collector.
-3. Plain scripts if Docker/Aspire causes friction.
+Do not add Aspire AppHost, ServiceDefaults, or Docker Compose in B-006. A later
+accepted decision may add them only if the script-based workflow proves
+insufficient.
 
 Important:
 
@@ -357,9 +364,6 @@ fortress-souls/
       FortressSouls.Prompting/
       FortressSouls.Observability/
       FortressSouls.Tests/
-      FortressSouls.TestDoubles/
-      FortressSouls.AppHost/
-      FortressSouls.ServiceDefaults/
 
     frontend/
       package.json
@@ -399,7 +403,6 @@ fortress-souls/
     format.ps1
     format.sh
 
-  compose.yaml
   README.md
 ```
 
@@ -1256,7 +1259,20 @@ Human checkpoint: yes/no
 
 # 15. v0.1 implementation backlog
 
-## Phase 0: Agentic scaffold
+The item blocks below are retained in ID-oriented reference groups. The
+dependency-driven execution order, merged statuses, and active mini-spec links
+are authoritative in `docs/backlog/v0.1-backlog.md`.
+
+Merged for execution:
+
+```text
+B-020 -> B-008
+B-010 -> B-009
+B-013 -> B-014
+B-023 -> B-017
+```
+
+## Reference group 0: Agentic scaffold
 
 ## B-001: Create monorepo skeleton and root agent guidance
 
@@ -1466,7 +1482,7 @@ Stop for human review if Codex wants to change the recommended stack.
 
 ---
 
-## Phase 1: Application skeleton
+## Reference group 1: Application foundations
 
 ## B-004: Create backend solution skeleton
 
@@ -1501,7 +1517,6 @@ src/backend/FortressSouls.Llm
 src/backend/FortressSouls.Prompting
 src/backend/FortressSouls.Observability
 src/backend/FortressSouls.Tests
-src/backend/FortressSouls.TestDoubles
 ```
 
 Add:
@@ -1539,9 +1554,9 @@ Stop if .NET SDK is unavailable and document required setup.
 
 ---
 
-## B-005: Add OpenTelemetry and structured logging baseline
+## B-005: Add observability and structured logging baseline
 
-Size: L
+Size: M
 Primary module: observability
 Depends on: B-004
 Human checkpoint: no
@@ -1569,6 +1584,9 @@ Add:
 * named `Meter`,
 * console exporter or OTLP exporter configuration,
 * health endpoint includes observability status.
+
+Feature-specific spans, metrics, and failure events are implemented by the
+backlog item that introduces each operation.
 
 ### Out of scope
 
@@ -1600,7 +1618,7 @@ Stop if telemetry setup requires a substantial stack decision not covered by ADR
 
 Size: M
 Primary module: local dev
-Depends on: B-005
+Depends on: B-005, B-007
 Human checkpoint: no
 
 ### Goal
@@ -1615,16 +1633,17 @@ Make local startup repeatable.
 
 ### Implementation scope
 
-Add one or both:
+Add thin repository scripts:
 
 ```text
-src/backend/FortressSouls.AppHost
-src/backend/FortressSouls.ServiceDefaults
-compose.yaml
 scripts/dev.ps1
 scripts/dev.sh
+scripts/format.ps1
+scripts/format.sh
 scripts/test.ps1
 scripts/test.sh
+scripts/check.ps1
+scripts/check.sh
 ```
 
 Prefer simple commands:
@@ -1642,8 +1661,8 @@ scripts/test
 
 ### Acceptance criteria
 
-* [ ] Developer can start backend with one documented command.
-* [ ] Developer can run tests with one documented command.
+* [ ] Developer can start backend and frontend with one documented command.
+* [ ] Developer can run backend and frontend checks with one documented command.
 * [ ] If dashboard is configured, runbook explains how to see traces/logs.
 * [ ] README has local dev bootstrap.
 
@@ -1723,18 +1742,19 @@ Stop if package manager choice conflicts with existing repo conventions.
 
 ---
 
-## Phase 2: Dwarf adapter contracts and fake data
+## Reference group 2: Dwarf contracts, adapters, and browser selection
 
-## B-008: Define v0.1 dwarf contracts
+## B-008: Define dwarf contracts and JSON-file adapter
 
-Size: M
+Size: L
 Primary module: Domain + DwarfFortress
-Depends on: B-004
+Depends on: B-004, B-019
 Human checkpoint: no
 
 ### Goal
 
-Define stable v0.1 contracts for dwarf list and dwarf snapshot.
+Define stable v0.1 contracts for dwarf list and dwarf snapshot, then prove the
+mapping against retained DFHack JSON samples through a read-only file adapter.
 
 ### Context to load
 
@@ -1771,17 +1791,23 @@ public interface IDwarfFortressAdapter
 }
 ```
 
+Add `JsonFileDwarfFortressAdapter` with configured paths, bounded reads, schema
+validation, DTO-to-contract mapping, cancellation, and safe errors. Configured
+paths never come from browser/API input.
+
 ### Out of scope
 
 * No real DFHack.
 * No UI changes.
+* No file writes or process execution.
 
 ### Acceptance criteria
 
 * [ ] Contracts compile.
 * [ ] Contracts are serializable by API.
 * [ ] Snapshot schema version is explicit.
-* [ ] Unit tests cover basic construction/serialization if useful.
+* [ ] Canonical list and snapshot samples map through the JSON-file adapter.
+* [ ] Missing, malformed, oversized, unsupported, cancelled, and mismatched files return stable safe errors.
 
 ### Validation commands
 
@@ -1795,16 +1821,17 @@ Stop if dwarf model starts including many uncertain DFHack fields. Keep v0.1 com
 
 ---
 
-## B-009: Implement fake dwarf adapter and sample data
+## B-009: Implement fake dwarf adapter and dwarf API
 
-Size: M
-Primary module: DwarfFortress + TestDoubles
-Depends on: B-008
+Size: L
+Primary module: DwarfFortress + Application + API
+Depends on: B-005, B-008
 Human checkpoint: no
 
 ### Goal
 
-Implement permanent fake data for offline development and tests.
+Implement permanent fake data and expose the list/snapshot HTTP vertical slice
+for offline development, frontend work, and tests.
 
 ### Context to load
 
@@ -1821,6 +1848,8 @@ FakeDwarfFortressAdapter
 sample dwarf list
 sample dwarf snapshots
 backend tests
+GET /api/dwarves
+GET /api/dwarves/{dwarfId}/snapshot
 ```
 
 Include at least three dwarves:
@@ -1851,6 +1880,8 @@ Each should have distinct:
 * [ ] Fake adapter returns safe error for missing dwarf id.
 * [ ] Tests cover list and snapshot.
 * [ ] Sample JSON is stored under `samples/snapshots`.
+* [ ] API responses include schema/source metadata and stable safe errors.
+* [ ] Integration tests cover endpoints, correlation, cancellation, and telemetry.
 
 ### Validation commands
 
@@ -1866,60 +1897,11 @@ Stop if sample data becomes too elaborate. It should test the UI and prompt, not
 
 ## B-010: Expose dwarf list and snapshot API
 
-Size: M
-Primary module: API + Application
-Depends on: B-009
-Human checkpoint: no
+Status: Merged into B-009
 
-### Goal
-
-Add backend endpoints for dwarf list and snapshot using the fake adapter.
-
-### Context to load
-
-* `AGENTS.md`
-* `docs/specs/fortress-souls-v0.1.spec.md`
-* `agent/instructions/backend.instructions.md`
-* `agent/skills/observability-first/SKILL.md`
-
-### Implementation scope
-
-Implement:
-
-```http
-GET /api/dwarves
-GET /api/dwarves/{dwarfId}/snapshot
-```
-
-Add tracing spans:
-
-```text
-fortresssouls.dwarves.list
-fortresssouls.dwarves.snapshot
-```
-
-### Out of scope
-
-* No frontend integration.
-* No DFHack.
-
-### Acceptance criteria
-
-* [ ] Endpoints return fake adapter data.
-* [ ] Invalid dwarf id returns appropriate error.
-* [ ] Responses include schema/source metadata.
-* [ ] Integration tests cover endpoints.
-* [ ] Logs/traces include adapter type and operation.
-
-### Validation commands
-
-```text
-dotnet test src/backend/FortressSouls.sln
-```
-
-### Stop conditions
-
-Stop if endpoint shape conflicts with documented API contract.
+The endpoint behavior, application queries, integration tests, and telemetry
+are implemented as the observable edge of B-009. See
+`docs/specs/minispecs/B-009-fake-dwarf-adapter-and-sample-data.md`.
 
 ---
 
@@ -1927,7 +1909,7 @@ Stop if endpoint shape conflicts with documented API contract.
 
 Size: L
 Primary module: frontend + API client
-Depends on: B-010, B-007
+Depends on: B-006, B-009
 Human checkpoint: no
 
 ### Goal
@@ -1960,6 +1942,9 @@ UI behaviour:
 * show summarized snapshot,
 * show raw snapshot in collapsible developer panel.
 
+The browser owns selection from the returned list. The feature does not read or
+mirror the unit highlighted in the Dwarf Fortress UI.
+
 ### Out of scope
 
 * No chat.
@@ -1988,7 +1973,7 @@ Stop if frontend build tooling is not yet stable.
 
 ---
 
-## Phase 3: Prompt and chat without real provider
+## Reference group 3: Prompt and chat
 
 ## B-012: Define prompt contract and prompt assembler
 
@@ -2059,75 +2044,25 @@ Stop if prompt starts becoming a giant mythology scroll. Keep it small and testa
 
 ## B-013: Add LLM provider abstraction and fake provider
 
-Size: M
-Primary module: Llm
-Depends on: B-012
-Human checkpoint: no
+Status: Merged into B-014
 
-### Goal
-
-Add provider abstraction and fake provider for offline chat development.
-
-### Context to load
-
-* `AGENTS.md`
-* `agent/instructions/backend.instructions.md`
-* `agent/instructions/testing.instructions.md`
-
-### Implementation scope
-
-Add:
-
-```text
-IChatProvider
-ChatProviderRequest
-ChatProviderResult
-FakeChatProvider
-ProviderConfiguration
-```
-
-Fake provider should return a deterministic response that includes enough signal to verify the selected dwarf influenced the prompt.
-
-Example fake response:
-
-```text
-[Fake response as Urist McMiner] I can see from my state that I am currently assigned to mining.
-```
-
-### Out of scope
-
-* No real provider.
-* No streaming.
-
-### Acceptance criteria
-
-* [ ] Provider abstraction compiles.
-* [ ] Fake provider works in tests.
-* [ ] Fake provider cannot call external services.
-* [ ] Provider result includes diagnostics.
-
-### Validation commands
-
-```text
-dotnet test src/backend/FortressSouls.sln
-```
-
-### Stop conditions
-
-Stop if provider abstraction becomes over-generalized for future tool calling. v0.1 is plain chat.
+The provider port, deterministic fake, registration, and contract tests are
+implemented with the first observable chat backend in B-014. See
+`docs/specs/minispecs/B-014-in-memory-chat-session-backend.md`.
 
 ---
 
-## B-014: Implement in-memory chat session backend
+## B-014: Implement fake-provider in-memory chat backend
 
 Size: L
 Primary module: Application + API + Prompting + Llm
-Depends on: B-010, B-012, B-013
+Depends on: B-009, B-012
 Human checkpoint: no
 
 ### Goal
 
-Let the backend create a chat session and send messages using the fake provider.
+Let the backend create a chat session for a browser-selected listed dwarf and
+send messages through a minimal provider port and deterministic fake.
 
 ### Context to load
 
@@ -2150,6 +2085,10 @@ GET /api/chat/sessions/{sessionId}/prompt-preview
 Add:
 
 ```text
+IChatProvider
+ChatProviderRequest
+ChatProviderResult
+FakeChatProvider
 InMemoryChatSessionStore
 SendChatMessageCommand
 ChatTurn orchestration
@@ -2176,6 +2115,9 @@ fortresssouls.llm.chat
 ### Acceptance criteria
 
 * [ ] Can create session for selected dwarf.
+* [ ] Session creation validates and binds the browser-selected listed dwarf ID.
+* [ ] Provider port remains plain-text, bounded, cancellation-aware, and free of tools/streaming/memory.
+* [ ] Fake provider is deterministic and performs no external I/O.
 * [ ] Can send message and get fake response.
 * [ ] Chat history remains in memory for the session.
 * [ ] Prompt preview works in development mode.
@@ -2261,13 +2203,13 @@ Stop if UX state management becomes tangled. Prefer simple local state.
 
 ---
 
-## Phase 4: Real provider
+## Reference group 4: Real provider and unified diagnostics
 
-## B-016: Implement configurable real LLM provider
+## B-016: Implement configurable real LLM provider and safe status API
 
 Size: L
 Primary module: Llm + configuration
-Depends on: B-014
+Depends on: B-005, B-014, B-022
 Human checkpoint: yes
 
 ### Goal
@@ -2310,6 +2252,10 @@ Add safety:
 * timeout provider calls,
 * return clean error messages.
 
+Add a read-only provider status API with only provider type, model,
+configured/readiness state, stable last outcome/error category, and bounded
+latency/time metadata. Status reads perform no provider request.
+
 ### Out of scope
 
 * No streaming.
@@ -2324,6 +2270,7 @@ Add safety:
 * [ ] Missing API key produces clear error.
 * [ ] Provider timeout is handled.
 * [ ] Provider errors are logged without secrets.
+* [ ] Status API exposes no key, endpoint, header, raw error, prompt, or response.
 * [ ] Runbook explains configuration.
 
 ### Validation commands
@@ -2340,16 +2287,17 @@ Stop for human decision if API shape is ambiguous or requires provider-specific 
 
 ---
 
-## B-017: Add provider status and diagnostics UI
+## B-017: Add unified runtime diagnostics and failure UX
 
-Size: M
-Primary module: frontend + API
-Depends on: B-016
+Size: L
+Primary module: Application + API + frontend
+Depends on: B-015, B-016, B-021
 Human checkpoint: no
 
 ### Goal
 
-Make provider configuration and failures visible to the user.
+Make adapter/provider readiness and common dwarf/chat/provider/DFHack failures
+consistent, understandable, correlated, and safe in the browser.
 
 ### Context to load
 
@@ -2359,31 +2307,28 @@ Make provider configuration and failures visible to the user.
 
 ### Implementation scope
 
-Add:
+Complete safe runtime status projections and frontend presentation for:
 
-```http
-GET /api/provider/status
-```
-
-Frontend displays:
-
-* provider type,
-* model,
-* configured/missing state,
-* last error summary if available,
-* latency from last request if available.
+* adapter/provider type and readiness,
+* model and bounded last-operation metadata,
+* backend/adapter unavailable,
+* no fortress or no dwarves,
+* invalid/stale selected dwarf ID,
+* invalid/expired session,
+* prompt/provider/DFHack failures and timeouts,
+* cancellation and correlation ID.
 
 ### Out of scope
 
-* No secret editing in UI.
-* No model picker unless trivial.
+* No secret/model/endpoint editor.
+* No retry engine, persistence, raw diagnostics download, or external probe on status read.
 
 ### Acceptance criteria
 
-* [ ] Provider status endpoint exists.
-* [ ] UI shows provider status.
-* [ ] Missing configuration is understandable.
-* [ ] No secrets are returned to frontend.
+* [ ] Adapter/provider status and expected failures use stable safe public projections.
+* [ ] UI covers loading, ready, degraded, missing, and error states accessibly.
+* [ ] Status reads trigger no provider, process, or file work.
+* [ ] Correlation ID is visible for support without leaking secrets/content/paths.
 
 ### Validation commands
 
@@ -2398,7 +2343,7 @@ Stop if implementation would expose secrets.
 
 ---
 
-## Phase 5: DFHack research and real adapter
+## Reference group 5: DFHack research and live adapter
 
 ## B-018: Research DFHack command invocation
 
@@ -2525,53 +2470,10 @@ Stop if any field extraction risks crash or mutation.
 
 ## B-020: Implement JSON-file dwarf adapter
 
-Size: M
-Primary module: DwarfFortress
-Depends on: B-009, B-019
-Human checkpoint: no
+Status: Merged into B-008
 
-### Goal
-
-Allow backend to use captured DFHack sample JSON before live DFHack integration.
-
-### Context to load
-
-* `AGENTS.md`
-* `agent/instructions/backend.instructions.md`
-* `agent/instructions/dfhack.instructions.md`
-
-### Implementation scope
-
-Add:
-
-```text
-JsonFileDwarfFortressAdapter
-configuration for sample file paths
-tests using sample files
-```
-
-### Out of scope
-
-* No process execution.
-* No live DFHack.
-
-### Acceptance criteria
-
-* [ ] Adapter loads dwarf list from JSON.
-* [ ] Adapter loads snapshot from JSON.
-* [ ] Invalid JSON returns clear error.
-* [ ] Tests cover sample loading.
-* [ ] Adapter type appears in health/status.
-
-### Validation commands
-
-```text
-dotnet test src/backend/FortressSouls.sln
-```
-
-### Stop conditions
-
-Stop if sample schema does not match domain contracts.
+The JSON-file adapter now proves the dwarf contracts and canonical sample
+mapping inside B-008. See `docs/specs/minispecs/B-008-dwarf-contracts.md`.
 
 ---
 
@@ -2579,7 +2481,7 @@ Stop if sample schema does not match domain contracts.
 
 Size: L
 Primary module: DwarfFortress
-Depends on: B-018, B-019, B-020
+Depends on: B-005, B-008, B-009, B-018, B-019
 Human checkpoint: yes
 
 ### Goal
@@ -2606,6 +2508,7 @@ error handling
 timeout handling
 stdout JSON parsing
 stderr capture
+safe adapter readiness/last-outcome projection
 ```
 
 Safety:
@@ -2625,10 +2528,12 @@ Safety:
 ### Acceptance criteria
 
 * [ ] Backend can list dwarves through DFHack scripts.
-* [ ] Backend can get selected dwarf snapshot.
+* [ ] Backend can get the browser-selected dwarf snapshot by validated listed ID.
+* [ ] Adapter does not read or depend on the unit highlighted in the DF UI.
 * [ ] Timeout is handled.
 * [ ] Invalid JSON is handled.
 * [ ] Process errors are logged safely.
+* [ ] Reading adapter status performs no TCP preflight or process launch and exposes no path/output/arguments.
 * [ ] Tests cover process runner using fake command where possible.
 * [ ] Manual runbook covers live DFHack validation.
 
@@ -2645,13 +2550,13 @@ Stop if implementation would require arbitrary DFHack command execution from API
 
 ---
 
-## Phase 6: v0.1 hardening
+## Reference group 6: Product proof, documentation, and release
 
-## B-022: End-to-end fake-mode smoke test
+## B-022: End-to-end fake-mode browser smoke test
 
 Size: M
 Primary module: tests
-Depends on: B-015
+Depends on: B-006, B-015
 Human checkpoint: no
 
 ### Goal
@@ -2665,11 +2570,11 @@ Create a repeatable fake-mode test proving the full app loop.
 
 ### Implementation scope
 
-Add an end-to-end or integration smoke test:
+Add one browser end-to-end smoke test:
 
 ```text
 start backend with fake adapter and fake provider
-open frontend or test API path
+open frontend
 list dwarves
 select dwarf
 create chat session
@@ -2697,80 +2602,31 @@ scripts/test
 
 ### Stop conditions
 
-Stop if full browser E2E is too heavy; implement API-level smoke first.
+Stop if a deterministic browser test requires live services, retries, or arbitrary sleeps. Do not substitute an API-only test for the required browser journey.
 
 ---
 
 ## B-023: Error handling and user-facing diagnostics pass
 
-Size: L
-Primary module: API + frontend
-Depends on: B-017, B-021 optional
-Human checkpoint: no
+Status: Merged into B-017
 
-### Goal
-
-Make v0.1 failures understandable.
-
-### Context to load
-
-* `AGENTS.md`
-* `agent/instructions/frontend.instructions.md`
-* `agent/instructions/backend.instructions.md`
-* `agent/skills/observability-first/SKILL.md`
-
-### Implementation scope
-
-Improve errors for:
-
-* backend unavailable,
-* adapter unavailable,
-* no fortress loaded,
-* no dwarves found,
-* invalid dwarf id,
-* provider missing API key,
-* provider timeout,
-* provider failure,
-* prompt assembly failure.
-
-Add user-facing messages and developer diagnostics.
-
-### Out of scope
-
-* No retry engine unless simple.
-* No complex notification framework.
-
-### Acceptance criteria
-
-* [ ] Common failures show clear messages.
-* [ ] Developer panel shows useful diagnostics.
-* [ ] Logs contain correlation IDs.
-* [ ] Errors do not expose secrets.
-* [ ] Tests cover key error mappings.
-
-### Validation commands
-
-```text
-dotnet test src/backend/FortressSouls.sln
-cd src/frontend && npm test && npm run build
-```
-
-### Stop conditions
-
-Stop if diagnostics would expose full prompt/response by default.
+Each boundary implements its failures when introduced. B-017 consolidates safe
+public status/error projections and browser presentation. See
+`docs/specs/minispecs/B-017-provider-status-and-diagnostics-ui.md`.
 
 ---
 
-## B-024: Documentation and runbook pass
+## B-024: Verify documentation and runbooks
 
 Size: M
 Primary module: docs
-Depends on: B-023
+Depends on: B-006, B-017, B-022
 Human checkpoint: no
 
 ### Goal
 
-Make the project usable by a human and by future Codex sessions.
+Verify that a new developer can use the implemented project and close only
+evidence-backed documentation/runbook gaps.
 
 ### Context to load
 
@@ -2962,7 +2818,7 @@ Human review is optional after:
 ```text
 B-012 prompt assembler
 B-015 chat UI
-B-023 diagnostics pass
+B-017 unified diagnostics and failure UX
 ```
 
 ---
@@ -2975,8 +2831,9 @@ v0.1 is done when:
 * [ ] Backend health is visible.
 * [ ] Dwarf list loads from fake adapter.
 * [ ] Dwarf list can load from real DFHack adapter if configured, or JSON-file adapter if live DFHack remains unresolved.
-* [ ] Player can select a dwarf.
-* [ ] Player can view current dwarf snapshot.
+* [ ] Player can select a dwarf from the backend list in the browser.
+* [ ] Player can view the browser-selected dwarf snapshot.
+* [ ] Dwarf selection does not depend on the unit highlighted in the DF UI.
 * [ ] Player can chat with the dwarf.
 * [ ] Chat uses selected dwarf state in the prompt.
 * [ ] Chat is in-memory only.
@@ -3032,18 +2889,19 @@ Do not block the app architecture on live game integration. Build fake and JSON-
 
 ---
 
-# 20. First five Codex tasks to run
+# 20. Next execution waves
 
-Run these first, in order:
+B-001 through B-003 and DFHack research items B-018/B-019 are complete.
+Start remaining implementation in this order:
 
 ```text
-B-001 Create monorepo skeleton and root agent guidance
-B-002 Add PROSE primitive files for v0.1 development
-B-003 Record stack and architecture ADRs
-B-004 Create backend solution skeleton
-B-005 Add OpenTelemetry and structured logging baseline
+Wave 1: B-004 backend solution skeleton
+Wave 2: B-005 observability baseline and B-007 frontend skeleton in parallel
+Wave 3: B-006 local development orchestration
+Wave 4: B-008 dwarf contracts plus JSON-file adapter
+Wave 5: B-009 fake dwarf adapter plus list/snapshot API
 ```
 
-Only after that should Codex build dwarf features.
-
-The purpose is to establish the rails before asking the little code-goblin to push the minecart.
+Then follow the dependency-driven waves and mini-spec links in
+`docs/backlog/v0.1-backlog.md`. In particular, complete the fake browser/chat
+journey and B-022 browser smoke test before attaching the real provider.

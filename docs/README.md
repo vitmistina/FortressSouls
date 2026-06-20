@@ -2,9 +2,16 @@
 
 This folder contains project-level documentation that should be stable across research spikes and implementation work.
 
+## v0.1 selection contract
+
+The backend lists eligible dwarves and returns snapshots by validated dwarf ID.
+The player selects a dwarf in the web UI. Fortress Souls does not read or
+depend on the unit currently highlighted in the Dwarf Fortress UI.
+
 ## Decisions
 
 - `decisions/adr-0003-dfhack-adapter.md` records the accepted v0.1 DFHack adapter invocation strategy.
+- `decisions/adr-0006-coding-model-routing-and-mini-specs.md` records the mini-spec lifecycle and model-routing policy.
 - `decisions/adr-0005-llm-provider-strategy.md` records the accepted v0.1 LLM provider strategy.
 
 ## LLM provider strategy

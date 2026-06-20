@@ -1,6 +1,6 @@
 # Project Memory
 
-Last updated: 2026-06-19
+Last updated: 2026-06-20
 
 ## Initial Decisions
 
@@ -11,8 +11,20 @@ Last updated: 2026-06-19
 - `dfhack/samples/` remains the current home for DFHack adapter artifacts; root `samples/` is reserved for future application-facing examples.
 - No application code or dependency installation is allowed in B-001.
 
+## Current v0.1 Decisions
+
+- The backend lists eligible dwarves and fetches snapshots by validated dwarf
+  ID. The browser owns selection; the unit highlighted in the Dwarf Fortress UI
+  is not an input.
+- B-018 and B-019 are complete and their retained scripts/samples inform the
+  application contracts.
+- Remaining work follows dependency-driven waves rather than numeric phases.
+- B-020 is merged into B-008, B-010 into B-009, B-013 into B-014, and B-023
+  into B-017. Stable IDs remain in the backlog as merged historical rows.
+- B-005 and B-007 complete in parallel after B-004; B-006 then establishes the
+  combined backend/frontend local development loop before feature work.
+
 ## Open Follow-Ups
 
-- Add the agent primitive files in B-002.
-- Add the missing scaffold ADRs and architecture docs in B-003.
-- Decide later whether the root spec copy should be retired after the docs tree becomes canonical.
+- Implement the active mini-specs in the dependency order recorded in
+  `docs/backlog/v0.1-backlog.md`.

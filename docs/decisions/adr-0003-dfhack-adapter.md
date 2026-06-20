@@ -15,7 +15,7 @@ Fortress Souls v0.1 needs a safe, local, read-only way to obtain dwarf data from
 The v0.1 product slice is intentionally narrow:
 
 1. show a list of dwarves,
-2. allow the player to select one dwarf,
+2. allow the player to select one dwarf in the web UI,
 3. extract a curated dwarf-state snapshot,
 4. send that snapshot to an LLM as prompt context,
 5. display a chat response.
@@ -63,6 +63,16 @@ The backend must not pass arbitrary filesystem script paths to `dfhack-run`.
 The backend must not allow the LLM to call DFHack.
 
 Scripts in the v0.1 allowlist must be read-only and must emit JSON-safe primitives only. They must not emit raw DFHack userdata or other values that depend on Lua object identity or memory layout.
+
+### Selection ownership clarification
+
+The adapter returns the eligible dwarf list and accepts a validated dwarf ID
+for snapshot extraction. The frontend owns selection from that list. v0.1 does
+not read, mirror, or depend on the unit currently highlighted in the Dwarf
+Fortress UI.
+
+Changing the browser selection starts or explicitly resets the in-memory chat
+session so conversation state cannot cross dwarf identities.
 
 ---
 
