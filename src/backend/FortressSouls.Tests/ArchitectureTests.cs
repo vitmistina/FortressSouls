@@ -3,15 +3,8 @@ namespace FortressSouls.Tests;
 using FortressSouls.Application;
 using FortressSouls.Domain;
 
-/// <summary>
-/// Architecture tests ensuring modular-monolith boundaries are respected.
-/// </summary>
 public class ArchitectureTests
 {
-    /// <summary>
-    /// Verify that Domain project has no inappropriate external dependencies.
-    /// Domain should only reference System namespaces, not adapters or framework.
-    /// </summary>
     [Fact]
     public void DomainProjectHasNoDependenciesOnAdaptersOrFramework()
     {
@@ -19,29 +12,50 @@ public class ArchitectureTests
         var referencedAssemblies = domainAssembly.GetReferencedAssemblies();
 
         var forbidden = referencedAssemblies
-            .Where(a => (a.Name ?? "").StartsWith("FortressSouls.")
-                || (a.Name ?? "").StartsWith("Microsoft.AspNetCore")
-                || (a.Name ?? "").StartsWith("Microsoft.EntityFrameworkCore"))
+            .Where(a => (a.Name ?? "").StartsWith("FortressSouls.", StringComparison.Ordinal)
+                || (a.Name ?? "").StartsWith("Microsoft.AspNetCore", StringComparison.Ordinal)
+                || (a.Name ?? "").StartsWith("Microsoft.EntityFrameworkCore", StringComparison.Ordinal))
             .ToList();
 
         Assert.Empty(forbidden);
     }
 
-    /// <summary>
-    /// Verify that the solution structure exists as expected.
-    /// </summary>
     [Fact]
-    public void SolutionStructureIsValid()
+    public void DwarfFortressPortExposesOnlyListAndByIdSnapshotOperations()
     {
-        // These assemblies should be loadable and present in the test context.
-        var domainAssembly = typeof(SentinelType).Assembly;
-        var appAssembly = typeof(HealthResponse).Assembly;
+        var methods = typeof(IDwarfFortressAdapter)
+            .GetMethods()
+            .OrderBy(method => method.Name, StringComparer.Ordinal)
+            .ToArray();
 
-        Assert.NotNull(domainAssembly);
-        Assert.NotNull(appAssembly);
+        Assert.Collection(
+            methods,
+            method =>
+            {
+                Assert.Equal(nameof(IDwarfFortressAdapter.GetDwarfSnapshotAsync), method.Name);
+                var parameters = method.GetParameters();
+                Assert.Collection(
+                    parameters,
+                    parameter => Assert.Equal(typeof(DwarfId), parameter.ParameterType),
+                    parameter => Assert.Equal(typeof(CancellationToken), parameter.ParameterType));
+            },
+            method =>
+            {
+                Assert.Equal(nameof(IDwarfFortressAdapter.ListDwarvesAsync), method.Name);
+                var parameters = method.GetParameters();
+                Assert.Collection(
+                    parameters,
+                    parameter => Assert.Equal(typeof(CancellationToken), parameter.ParameterType));
+            });
+    }
+
+    [Fact]
+    public void SolutionAssembliesRemainLoadable()
+    {
+        var domainAssembly = typeof(SentinelType).Assembly;
+        var applicationAssembly = typeof(HealthResponse).Assembly;
+
         Assert.Equal("FortressSouls.Domain", domainAssembly.GetName().Name);
-        Assert.Equal("FortressSouls.Application", appAssembly.GetName().Name);
+        Assert.Equal("FortressSouls.Application", applicationAssembly.GetName().Name);
     }
 }
-
-

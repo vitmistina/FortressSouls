@@ -1,6 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <ProjectReference Include="..\FortressSouls.Application\FortressSouls.Application.csproj" />
     <ProjectReference Include="..\FortressSouls.Domain\FortressSouls.Domain.csproj" />
   </ItemGroup>
 
