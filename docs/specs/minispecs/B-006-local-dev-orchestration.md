@@ -1,6 +1,6 @@
 # B-006: Add local dev orchestration
 
-Status: Ready
+Status: Done
 Parent backlog: `docs/backlog/v0.1-backlog.md#b-006`
 Product specification: `docs/specs/fortress-souls-v0.1.spec.md`
 Primary module: Developer tooling

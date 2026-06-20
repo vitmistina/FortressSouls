@@ -22,6 +22,9 @@ Required:
 - Node.js for the frontend,
 - PowerShell on Windows.
 
+If local script execution is blocked, run the commands with
+`powershell -ExecutionPolicy Bypass -File ...` for the current session.
+
 Optional:
 
 - Docker Desktop, if using the Aspire Dashboard container,
@@ -36,7 +39,8 @@ $env:FortressSouls__DwarfFortress__AdapterType = "Fake"
 $env:FortressSouls__Llm__ProviderType = "Fake"
 ```
 
-For local telemetry to Aspire Dashboard:
+For local telemetry to Aspire Dashboard when starting the API outside the
+canonical launch profile:
 
 ```powershell
 $env:OTEL_EXPORTER_OTLP_ENDPOINT = "http://localhost:4317"
@@ -44,7 +48,9 @@ $env:OTEL_EXPORTER_OTLP_PROTOCOL = "grpc"
 $env:OTEL_SERVICE_NAME = "FortressSouls.Api"
 ```
 
-Telemetry export must never be required for the app to start.
+The canonical `http` and `https` launch profiles already set these values, so
+`scripts/dev.*` and `dotnet run --launch-profile http` do not need manual OTEL
+exports. Telemetry export must never be required for the app to start.
 
 ## Start Aspire Dashboard
 
@@ -90,18 +96,41 @@ Then open:
 http://localhost:18888
 ```
 
-## Start backend
+## Canonical scripts
+
+Use the repository wrappers from the root:
+
+```powershell
+.\scripts\dev.ps1
+.\scripts\format.ps1
+.\scripts\test.ps1
+.\scripts\check.ps1
+```
+
+On POSIX shells, use:
+
+```bash
+./scripts/dev.sh
+./scripts/format.sh
+./scripts/test.sh
+./scripts/check.sh
+```
+
+`dev` starts the current backend and frontend shells together. The frontend dev
+server proxies `/api` to the backend on `http://127.0.0.1:5230`.
+
+## Start backend directly
 
 From the repository root:
 
 ```powershell
-dotnet run --project .\src\backend\FortressSouls.Api\FortressSouls.Api.csproj
+dotnet run --launch-profile http --project .\src\backend\FortressSouls.Api\FortressSouls.Api.csproj
 ```
 
 Expected health endpoint:
 
 ```text
-GET http://localhost:<api-port>/api/health
+GET http://localhost:5230/api/health
 ```
 
 Expected response shape:
@@ -110,19 +139,19 @@ Expected response shape:
 {
   "status": "ok",
   "version": "0.1.0",
-  "adapter": "Fake",
-  "provider": "Fake"
+  "adapter": "NotConfigured",
+  "provider": "NotConfigured"
 }
 ```
 
-## Start frontend
+## Start frontend directly
 
 From the repository root:
 
 ```powershell
 cd .\src\frontend
 npm install
-npm run dev
+npm run dev -- --host 127.0.0.1 --strictPort
 ```
 
 The frontend should show:
@@ -131,46 +160,22 @@ The frontend should show:
 - placeholder or real dwarf list depending on implementation phase,
 - diagnostics panel.
 
-## Recommended scripts
+## Dashboard
 
-When scripts are added, prefer bulk commands over manual bead-threading.
-
-Suggested files:
-
-```text
-scripts/dev.ps1
-scripts/test.ps1
-scripts/start-dashboard.ps1
-```
-
-### `scripts/start-dashboard.ps1`
-
-Suggested content:
+Local telemetry inspection is optional. Use the standalone Aspire Dashboard if
+you want to view traces and metrics while developing:
 
 ```powershell
-docker rm -f aspire-dashboard 2>$null
-
-docker run --rm -it `
-  -p 18888:18888 `
-  -p 4317:18889 `
-  -p 4318:18890 `
-  -e ASPIRE_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true `
-  --name aspire-dashboard `
-  mcr.microsoft.com/dotnet/aspire-dashboard:latest
+npx -y @microsoft/aspire-cli dashboard run --allow-anonymous
 ```
 
-### `scripts/test.ps1`
-
-Suggested behaviour:
+Then open:
 
 ```text
-dotnet test src/backend/FortressSouls.sln
-cd src/frontend
-npm test
-npm run build
+http://localhost:18888
 ```
 
-Only include frontend commands after the frontend exists.
+The app should still start and stay usable when the dashboard is not running.
 
 ## What to verify in the dashboard
 
@@ -215,7 +220,8 @@ http://localhost:4317
 grpc
 ```
 
-Also check that the API was started after these environment variables were set.
+Also check that the API was started with the canonical launch profile or after
+these environment variables were set.
 
 ### Backend fails when dashboard is not running
 

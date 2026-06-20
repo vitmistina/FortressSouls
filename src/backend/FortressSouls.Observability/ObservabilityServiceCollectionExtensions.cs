@@ -18,20 +18,23 @@ public static class ObservabilityServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(configuration);
         ArgumentNullException.ThrowIfNull(environment);
 
-        services.AddSingleton(FortressSoulsTelemetry.ActivitySource);
-        services.AddSingleton(FortressSoulsTelemetry.Meter);
+        services
+            .AddSingleton(FortressSoulsTelemetry.ActivitySource)
+            .AddSingleton(FortressSoulsTelemetry.Meter);
 
         // Add OpenTelemetry with OTLP exporter if configured
-        if (ObservabilityConfiguration.TryGetOtlpEndpoint(configuration, out var endpoint))
+        if (ObservabilityConfiguration.TryGetOtlpEndpoint(
+                configuration,
+                out var endpoint))
         {
             services.AddOpenTelemetry()
                 .WithTracing(builder => builder
                     .AddSource(FortressSoulsTelemetry.ActivitySourceName)
                     .AddAspNetCoreInstrumentation()
-                    .AddOtlpExporter(opt => opt.Endpoint = endpoint))
+                    .AddOtlpExporter(options => options.Endpoint = endpoint))
                 .WithMetrics(builder => builder
                     .AddMeter(FortressSoulsTelemetry.MeterName)
-                    .AddOtlpExporter(opt => opt.Endpoint = endpoint));
+                    .AddOtlpExporter(options => options.Endpoint = endpoint));
         }
 
         return services;

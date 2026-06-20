@@ -1,5 +1,6 @@
 namespace FortressSouls.Observability;
 
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.Configuration;
 
 public static class ObservabilityConfiguration
@@ -11,7 +12,7 @@ public static class ObservabilityConfiguration
             ? FortressSoulsTelemetry.OtlpConfiguredObservabilityState
             : FortressSoulsTelemetry.ConsoleFallbackObservabilityState;
 
-    public static bool TryGetOtlpEndpoint(IConfiguration configuration, out Uri? endpoint)
+    public static bool TryGetOtlpEndpoint(IConfiguration configuration, [NotNullWhen(true)] out Uri? endpoint)
     {
         var rawEndpoint = configuration[OtlpEndpointKey];
         if (string.IsNullOrWhiteSpace(rawEndpoint))
