@@ -30,6 +30,7 @@
     <ProjectReference Include="..\FortressSouls.Application\FortressSouls.Application.csproj" />
     <ProjectReference Include="..\FortressSouls.Domain\FortressSouls.Domain.csproj" />
     <ProjectReference Include="..\FortressSouls.DwarfFortress\FortressSouls.DwarfFortress.csproj" />
+    <ProjectReference Include="..\FortressSouls.DfHackProcessTestHost\FortressSouls.DfHackProcessTestHost.csproj" />
     <ProjectReference Include="..\FortressSouls.Llm\FortressSouls.Llm.csproj" />
     <ProjectReference Include="..\FortressSouls.Prompting\FortressSouls.Prompting.csproj" />
     <ProjectReference Include="..\FortressSouls.Observability\FortressSouls.Observability.csproj" />

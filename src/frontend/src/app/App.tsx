@@ -1,13 +1,28 @@
 import { HealthStatusPanel, type HealthStatusPanelProps } from "../features/diagnostics/HealthStatusPanel";
-import { ChatPlaceholder } from "../features/chat/ChatPlaceholder";
-import { DwarfListPlaceholder } from "../features/dwarves/DwarfListPlaceholder";
-import { SelectedDwarfPlaceholder } from "../features/dwarves/SelectedDwarfPlaceholder";
+import { RuntimeStatusPanel, type RuntimeStatusPanelProps } from "../features/diagnostics/RuntimeStatusPanel";
+import { DwarfSelectionPanels, type DwarfSelectionPanelsProps } from "../features/dwarves/DwarfSelectionPanels";
 
 export interface AppProps {
   loadHealth?: HealthStatusPanelProps["loadHealth"];
+  loadRuntimeStatus?: RuntimeStatusPanelProps["loadRuntimeStatus"];
+  loadDwarfList?: DwarfSelectionPanelsProps["loadDwarfList"];
+  loadDwarfSnapshot?: DwarfSelectionPanelsProps["loadDwarfSnapshot"];
+  showDevelopmentPreview?: DwarfSelectionPanelsProps["showDevelopmentPreview"];
+  createChatSession?: DwarfSelectionPanelsProps["createChatSession"];
+  sendChatMessage?: DwarfSelectionPanelsProps["sendChatMessage"];
+  loadChatPromptPreview?: DwarfSelectionPanelsProps["loadChatPromptPreview"];
 }
 
-export function App({ loadHealth }: AppProps) {
+export function App({
+  loadHealth,
+  loadRuntimeStatus,
+  loadDwarfList,
+  loadDwarfSnapshot,
+  showDevelopmentPreview,
+  createChatSession,
+  sendChatMessage,
+  loadChatPromptPreview,
+}: AppProps) {
   return (
     <div className="app-shell">
       <header className="hero">
@@ -21,6 +36,7 @@ export function App({ loadHealth }: AppProps) {
 
       <main className="content-grid">
         <HealthStatusPanel loadHealth={loadHealth} />
+        <RuntimeStatusPanel loadRuntimeStatus={loadRuntimeStatus} />
 
         <section className="panel panel--workflow" aria-labelledby="workflow-heading">
           <div className="panel__header">
@@ -28,9 +44,14 @@ export function App({ loadHealth }: AppProps) {
             <h2 id="workflow-heading">Browser workflow</h2>
           </div>
           <div className="workflow-grid">
-            <DwarfListPlaceholder />
-            <SelectedDwarfPlaceholder />
-            <ChatPlaceholder />
+            <DwarfSelectionPanels
+              loadDwarfList={loadDwarfList}
+              loadDwarfSnapshot={loadDwarfSnapshot}
+              showDevelopmentPreview={showDevelopmentPreview}
+              createChatSession={createChatSession}
+              sendChatMessage={sendChatMessage}
+              loadChatPromptPreview={loadChatPromptPreview}
+            />
           </div>
         </section>
       </main>

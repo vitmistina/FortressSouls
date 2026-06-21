@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { fetchHealth, type HealthResult } from "../../api/health";
 
 type HealthLoader = (signal?: AbortSignal) => Promise<HealthResult>;
@@ -14,6 +14,12 @@ type HealthPanelState =
 
 export function HealthStatusPanel({ loadHealth = fetchHealth }: HealthStatusPanelProps) {
   const [state, setState] = useState<HealthPanelState>({ kind: "loading" });
+  const [retryKey, setRetryKey] = useState(0);
+
+  const handleRetry = useCallback(() => {
+    setState({ kind: "loading" });
+    setRetryKey((k) => k + 1);
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -35,7 +41,7 @@ export function HealthStatusPanel({ loadHealth = fetchHealth }: HealthStatusPane
       active = false;
       controller.abort();
     };
-  }, [loadHealth]);
+  }, [loadHealth, retryKey]);
 
   if (state.kind === "loading") {
     return (
@@ -59,6 +65,9 @@ export function HealthStatusPanel({ loadHealth = fetchHealth }: HealthStatusPane
         <p className="panel__copy panel__copy--error" role="alert">
           Backend health is unavailable right now.
         </p>
+        <button type="button" onClick={handleRetry}>
+          Retry
+        </button>
       </section>
     );
   }

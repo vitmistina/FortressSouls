@@ -83,6 +83,25 @@ The exact phrasing is not important. This test only proves:
 - the request shape is accepted,
 - the model returns plain chat text.
 
+## Provider status API
+
+Read runtime status without triggering any provider network call:
+
+```powershell
+Invoke-RestMethod -Uri "http://localhost:5000/api/provider/status"
+```
+
+Returned fields are allowlisted and safe:
+
+- provider type,
+- configured model slug,
+- configured/readiness booleans,
+- last outcome and stable error category,
+- bounded duration and timestamp metadata.
+
+The status response never includes endpoint URL, API key, Authorization headers,
+raw request/response bodies, prompts, or model output text.
+
 ## Safety rules
 
 Never commit:

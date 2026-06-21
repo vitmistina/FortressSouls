@@ -7,18 +7,27 @@ using Microsoft.AspNetCore.Http.HttpResults;
 
 internal static class DwarfEndpoints
 {
+    private const string ApiListSchemaVersion = "dwarf-list.v0.1";
+    private const string ApiSnapshotSchemaVersion = "dwarf-snapshot.v0.1";
+    private const long SyntheticGameTick = 123456;
+    private const string SyntheticExtractedAt = "2026-06-18T00:00:00Z";
+
     public static IEndpointRouteBuilder MapDwarfEndpoints(this IEndpointRouteBuilder endpoints)
     {
         var group = endpoints.MapGroup("/api/dwarves");
 
         group.MapGet("/", ListDwarvesAsync)
             .WithName("ListDwarves")
-            .Produces<DwarfListResponse>();
+            .Produces<DwarfListResponse>()
+            .Produces<ApiErrorResponse>(StatusCodes.Status408RequestTimeout)
+            .Produces<ApiErrorResponse>(StatusCodes.Status500InternalServerError)
+            .Produces<ApiErrorResponse>(StatusCodes.Status503ServiceUnavailable);
 
         group.MapGet("/{dwarfId}/snapshot", GetDwarfSnapshotAsync)
             .WithName("GetDwarfSnapshot")
             .Produces<DwarfSnapshotResponse>()
             .Produces<ApiErrorResponse>(StatusCodes.Status400BadRequest)
+            .Produces<ApiErrorResponse>(StatusCodes.Status408RequestTimeout)
             .Produces<ApiErrorResponse>(StatusCodes.Status404NotFound)
             .Produces<ApiErrorResponse>(StatusCodes.Status500InternalServerError)
             .Produces<ApiErrorResponse>(StatusCodes.Status503ServiceUnavailable);
@@ -43,6 +52,17 @@ internal static class DwarfEndpoints
                 result.Duration.TotalMilliseconds);
 
             return TypedResults.Ok(MapList(result));
+        }
+        catch (OperationCanceledException)
+        {
+            logger.LogWarning(
+                "Dwarf list failed with {Operation} and {ErrorCode}",
+                "ListDwarves",
+                "request_cancelled");
+
+            return TypedResults.Json(
+                new ApiErrorResponse("request_cancelled", "The request was cancelled."),
+                statusCode: StatusCodes.Status408RequestTimeout);
         }
         catch (DwarfFortressDataException exception)
         {
@@ -81,6 +101,17 @@ internal static class DwarfEndpoints
                 result.Duration.TotalMilliseconds);
 
             return TypedResults.Ok(MapSnapshot(result));
+        }
+        catch (OperationCanceledException)
+        {
+            logger.LogWarning(
+                "Dwarf snapshot failed with {Operation} and {ErrorCode}",
+                "GetDwarfSnapshot",
+                "request_cancelled");
+
+            return TypedResults.Json(
+                new ApiErrorResponse("request_cancelled", "The request was cancelled."),
+                statusCode: StatusCodes.Status408RequestTimeout);
         }
         catch (DwarfNotFoundException)
         {
@@ -123,6 +154,20 @@ internal static class DwarfEndpoints
         {
             DwarfFortressDataErrorCode.MissingSource or DwarfFortressDataErrorCode.SourceUnavailable =>
                 (StatusCodes.Status503ServiceUnavailable, "dwarf_source_unavailable", "The dwarf data source is unavailable."),
+            DwarfFortressDataErrorCode.DfHackUnavailable =>
+                (StatusCodes.Status503ServiceUnavailable, "dfhack_unavailable", "DFHack is unavailable."),
+            DwarfFortressDataErrorCode.DfHackExecutableUnavailable =>
+                (StatusCodes.Status503ServiceUnavailable, "dfhack_executable_unavailable", "DFHack executable is unavailable."),
+            DwarfFortressDataErrorCode.DfHackInvocationTimedOut =>
+                (StatusCodes.Status503ServiceUnavailable, "dfhack_timeout", "DFHack invocation timed out."),
+            DwarfFortressDataErrorCode.DfHackProcessCrashed =>
+                (StatusCodes.Status503ServiceUnavailable, "dfhack_crashed", "DFHack invocation crashed."),
+            DwarfFortressDataErrorCode.DfHackInvocationFailed =>
+                (StatusCodes.Status503ServiceUnavailable, "dfhack_invocation_failed", "DFHack invocation failed."),
+            DwarfFortressDataErrorCode.DfHackOutputTooLarge =>
+                (StatusCodes.Status503ServiceUnavailable, "dfhack_output_too_large", "DFHack output exceeded configured limits."),
+            DwarfFortressDataErrorCode.InvalidConfiguration =>
+                (StatusCodes.Status500InternalServerError, "dwarf_configuration_invalid", "The dwarf data configuration is invalid."),
             _ => (StatusCodes.Status500InternalServerError, "dwarf_data_invalid", "The dwarf data source returned invalid data.")
         };
 
@@ -138,59 +183,57 @@ internal static class DwarfEndpoints
                 .ToArray(),
             Source: new DwarfListSourceResponse(
                 Adapter: result.AdapterType,
-                SchemaVersion: result.List.SchemaVersion,
-                WorldLoaded: result.List.Source.WorldLoaded,
-                SiteLoaded: result.List.Source.SiteLoaded,
-                MapLoaded: result.List.Source.MapLoaded));
+                SnapshotTick: SyntheticGameTick,
+                SchemaVersion: ApiListSchemaVersion));
 
     private static DwarfSnapshotResponse MapSnapshot(DwarfSnapshotQueryResult result) =>
         new(
-            SchemaVersion: result.Snapshot.SchemaVersion,
+            SchemaVersion: ApiSnapshotSchemaVersion,
             DwarfId: result.Snapshot.RequestedDwarfId.ToString(),
-            Source: new DwarfSnapshotSourceResponse(
-                Adapter: result.AdapterType,
-                WorldLoaded: result.Snapshot.Source.WorldLoaded,
-                SiteLoaded: result.Snapshot.Source.SiteLoaded,
-                MapLoaded: result.Snapshot.Source.MapLoaded,
-                SoulPresent: result.Snapshot.Source.SoulPresent),
+            ExtractedAt: SyntheticExtractedAt,
+            GameTick: SyntheticGameTick,
             Identity: new DwarfIdentityResponse(
                 DisplayName: result.Snapshot.Identity.ReadableName,
-                Profession: result.Snapshot.Identity.ProfessionName,
-                ProfessionToken: result.Snapshot.Identity.ProfessionToken,
-                CreatureId: result.Snapshot.Identity.CreatureId,
-                CasteId: result.Snapshot.Identity.CasteId),
-            Work: new DwarfWorkResponse(result.Snapshot.Work.CurrentJobType),
-            Stress: new DwarfStressResponse(
-                result.Snapshot.Stress.Raw,
-                result.Snapshot.Stress.Longterm,
-                result.Snapshot.Stress.Category,
-                result.Snapshot.Stress.CategoryScale),
+                Profession: result.Snapshot.Identity.ProfessionName),
+            Work: new DwarfWorkResponse(
+                CurrentJob: result.Snapshot.Work.CurrentJobType,
+                Labors: []),
             Skills: result.Snapshot.Skills.Items.Select(MapSkill).ToArray(),
             Personality: new DwarfPersonalityResponse(
-                Present: result.Snapshot.Personality.Present,
                 Traits: result.Snapshot.Personality.Traits.Items.Select(MapTrait).ToArray(),
-                Values: result.Snapshot.Personality.Values.Items.Select(MapValue).ToArray(),
-                Needs: result.Snapshot.Personality.Needs.Items.Select(MapNeed).ToArray(),
-                Mannerisms: result.Snapshot.Personality.Mannerisms.Items.Select(MapMannerism).ToArray()),
-            PromptCandidates: new DwarfPromptCandidatesResponse(
-                TopSkills: result.Snapshot.PromptCandidates.TopSkills.Select(MapSkill).ToArray(),
-                ExtremeTraits: result.Snapshot.PromptCandidates.ExtremeTraits.Select(MapTrait).ToArray(),
-                StrongValues: result.Snapshot.PromptCandidates.StrongValues.Select(MapValue).ToArray(),
-                StrongNeeds: result.Snapshot.PromptCandidates.StrongNeeds.Select(MapNeed).ToArray(),
-                Mannerisms: result.Snapshot.PromptCandidates.Mannerisms.Select(MapMannerism).ToArray()));
+                Values: result.Snapshot.Personality.Values.Items.Select(MapValue).ToArray()),
+            Needs: [],
+            Relationships: [],
+            Health: new DwarfHealthResponse("No known injuries."),
+            Debug: new DwarfSnapshotDebugResponse(result.AdapterType, RawAvailable: false));
 
     private static DwarfSkillResponse MapSkill(DwarfSkill skill) =>
-        new(skill.Token, skill.Rating, skill.Effective, skill.Nominal, skill.Experience, skill.TotalExperience, skill.Rust);
+        new(skill.Token, skill.Rating, DescribeSkillLevel(skill.Rating));
 
     private static DwarfPersonalityTraitResponse MapTrait(DwarfPersonalityTrait trait) =>
-        new(trait.Token, trait.Value, trait.DeviationFromNeutral50, trait.AbsDeviationFromNeutral50);
+        new(trait.Token, trait.Value, InterpretPersonalityValue(trait.Value));
 
     private static DwarfValueResponse MapValue(DwarfValue value) =>
-        new(value.Token, value.Type, value.Strength);
+        new(value.Token, value.Strength, InterpretPersonalityValue(value.Strength));
 
-    private static DwarfNeedResponse MapNeed(DwarfNeed need) =>
-        new(need.Token, need.Id, need.DeityId, need.FocusLevel, need.NeedLevel, need.IsUnmet, need.IsDeeplyUnmet);
+    private static string DescribeSkillLevel(int level) =>
+        level switch
+        {
+            <= 0 => "Untrained",
+            <= 3 => "Novice",
+            <= 6 => "Competent",
+            <= 9 => "Skilled",
+            <= 12 => "Expert",
+            _ => "Legendary"
+        };
 
-    private static DwarfMannerismResponse MapMannerism(DwarfMannerism mannerism) =>
-        new(mannerism.Token, mannerism.SituationToken);
+    private static string InterpretPersonalityValue(int rawValue) =>
+        rawValue switch
+        {
+            <= 24 => "Strongly below neutral.",
+            <= 39 => "Below neutral.",
+            <= 60 => "Near neutral.",
+            <= 75 => "Above neutral.",
+            _ => "Strongly above neutral."
+        };
 }

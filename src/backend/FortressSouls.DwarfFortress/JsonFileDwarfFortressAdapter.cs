@@ -176,7 +176,7 @@ public sealed class JsonFileDwarfFortressAdapter : IDwarfFortressAdapter
         }
     }
 
-    private DwarfListResult MapList(JsonElement root)
+    internal DwarfListResult MapList(JsonElement root)
     {
         var schemaVersion = GetRequiredString(root, "schemaVersion");
         EnsureSchemaVersion(schemaVersion, DwarfSchemaVersions.List, "dwarf list");
@@ -223,7 +223,7 @@ public sealed class JsonFileDwarfFortressAdapter : IDwarfFortressAdapter
                 IsSane: GetRequiredBoolean(flags, "isSane")));
     }
 
-    private DwarfSnapshot MapSnapshot(JsonElement root, DwarfId requestedDwarfId)
+    internal DwarfSnapshot MapSnapshot(JsonElement root, DwarfId requestedDwarfId)
     {
         var schemaVersion = GetRequiredString(root, "schemaVersion");
         EnsureSchemaVersion(schemaVersion, DwarfSchemaVersions.Snapshot, "dwarf snapshot");

@@ -20,7 +20,14 @@ public enum DwarfFortressDataErrorCode
     MalformedJson,
     UnsupportedSchema,
     InvalidData,
-    InconsistentData
+    InconsistentData,
+    InvalidConfiguration,
+    DfHackUnavailable,
+    DfHackExecutableUnavailable,
+    DfHackInvocationTimedOut,
+    DfHackProcessCrashed,
+    DfHackInvocationFailed,
+    DfHackOutputTooLarge
 }
 
 public sealed class DwarfFortressDataException : Exception

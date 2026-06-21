@@ -2,6 +2,8 @@ using FortressSouls.Application;
 using FortressSouls.Api;
 using FortressSouls.Observability;
 using FortressSouls.DwarfFortress;
+using FortressSouls.Llm;
+using FortressSouls.Prompting;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Logging.ClearProviders();
@@ -12,9 +14,13 @@ builder.Logging.AddJsonConsole(options =>
 });
 
 builder.Services.AddFortressSoulsObservability(builder.Configuration, builder.Environment);
-builder.Services.AddSingleton<IDwarfFortressAdapter, FakeDwarfFortressAdapter>();
-builder.Services.AddSingleton(new DwarfAdapterDescriptor("Fake"));
+builder.Services.AddFortressSoulsDwarfFortress(builder.Configuration);
+builder.Services.AddSingleton(ChatSessionOptions.Default);
+builder.Services.AddSingleton<IChatSessionStore, InMemoryChatSessionStore>();
+builder.Services.AddFortressSoulsLlm(builder.Configuration);
+builder.Services.AddSingleton<PromptAssembler>();
 builder.Services.AddScoped<DwarfQueryService>();
+builder.Services.AddScoped<ChatSessionService>();
 
 var app = builder.Build();
 
@@ -22,19 +28,26 @@ app.UseFortressSoulsCorrelationId();
 
 var observabilityState = ObservabilityConfiguration.GetHealthState(builder.Configuration);
 var adapterDescriptor = app.Services.GetRequiredService<DwarfAdapterDescriptor>();
+var providerStatusReader = app.Services.GetRequiredService<IChatProviderStatusReader>();
 app.Logger.LogInformation(
-    "Fortress Souls API starting with observability {ObservabilityState} and adapter {AdapterType}",
+    "Fortress Souls API starting with observability {ObservabilityState}, adapter {AdapterType}, and provider {ProviderType}",
     observabilityState,
-    adapterDescriptor.AdapterType);
+    adapterDescriptor.AdapterType,
+    providerStatusReader.GetCurrentStatus().ProviderType);
 
 app.Lifetime.ApplicationStarted.Register(() =>
 {
     FortressSoulsTelemetry.RecordStartup(observabilityState);
 });
 
-app.MapGet("/api/health", () => HealthResponse.CreateBasic(observabilityState, adapterDescriptor.AdapterType))
+app.MapGet(
+        "/api/health",
+        (IChatProviderStatusReader providerStatus) => HealthResponse.CreateBasic(observabilityState, adapterDescriptor.AdapterType, providerStatus.GetCurrentStatus().ProviderType))
     .WithName("Health")
     .Produces<HealthResponse>();
+app.MapProviderStatusEndpoints();
+app.MapDwarfAdapterStatusEndpoints();
 app.MapDwarfEndpoints();
+app.MapChatEndpoints(builder.Environment.IsDevelopment());
 
 app.Run();

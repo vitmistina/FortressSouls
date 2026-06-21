@@ -16,6 +16,8 @@ run_step "backend test" dotnet test "$backend_solution" --no-build
 (
   cd "$frontend_dir"
   run_step "frontend typecheck" npm run typecheck
-  run_step "frontend test" npm test
+  run_step "frontend test" npm test -- --run
   run_step "frontend build" npm run build
+  run_step "frontend e2e install" npm run test:e2e:install
+  run_step "frontend e2e smoke" npm run test:e2e
 )

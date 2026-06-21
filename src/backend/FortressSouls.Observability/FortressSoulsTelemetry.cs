@@ -35,9 +35,23 @@ public static class FortressSoulsTelemetry
 
     public const string DwarvesSnapshotActivityName = "fortresssouls.dwarves.snapshot";
 
+    public const string PromptAssembleActivityName = "fortresssouls.prompt.assemble";
+
+    public const string LlmChatActivityName = "fortresssouls.llm.chat";
+
+    public const string ChatTurnActivityName = "fortresssouls.chat.turn";
+
     public const string DwarvesListDurationMetricName = "fortresssouls.dwarves.list.duration";
 
     public const string DwarvesSnapshotDurationMetricName = "fortresssouls.dwarves.snapshot.duration";
+
+    public const string PromptTokensEstimatedMetricName = "fortresssouls.prompt.tokens.estimated";
+
+    public const string LlmRequestDurationMetricName = "fortresssouls.llm.request.duration";
+
+    public const string LlmRequestCountMetricName = "fortresssouls.llm.request.count";
+
+    public const string LlmErrorCountMetricName = "fortresssouls.llm.error.count";
 
     public const string AdapterTypeTagName = "fortresssouls.adapter.type";
 
@@ -51,6 +65,8 @@ public static class FortressSoulsTelemetry
 
     public const string PromptTemplateVersionTagName = "fortresssouls.prompt.template_version";
 
+    public const string PromptTruncatedTagName = "fortresssouls.prompt.truncated";
+
     public const string ChatSessionIdTagName = "fortresssouls.chat.session_id";
 
     public const string ConsoleFallbackObservabilityState = "ConsoleFallback";
@@ -62,6 +78,10 @@ public static class FortressSoulsTelemetry
     public const string ObservabilityStateTagName = "observability.state";
 
     public const string OperationOutcomeTagName = "fortresssouls.operation.outcome";
+
+    public const string DfHackCommandTagName = "fortresssouls.dfhack.command";
+
+    public const string ErrorCategoryTagName = "fortresssouls.error.category";
 
     public const string SuccessOutcome = "success";
 
@@ -84,6 +104,18 @@ public static class FortressSoulsTelemetry
     private static readonly Histogram<double> DwarvesSnapshotDuration = Meter.CreateHistogram<double>(
         DwarvesSnapshotDurationMetricName,
         unit: "ms");
+
+    private static readonly Histogram<int> PromptTokensEstimated = Meter.CreateHistogram<int>(
+        PromptTokensEstimatedMetricName,
+        unit: "{token}");
+
+    private static readonly Histogram<double> LlmRequestDuration = Meter.CreateHistogram<double>(
+        LlmRequestDurationMetricName,
+        unit: "ms");
+
+    private static readonly Counter<long> LlmRequestCount = Meter.CreateCounter<long>(LlmRequestCountMetricName);
+
+    private static readonly Counter<long> LlmErrorCount = Meter.CreateCounter<long>(LlmErrorCountMetricName);
 
     public static void RecordStartup(string observabilityState)
     {
@@ -118,6 +150,60 @@ public static class FortressSoulsTelemetry
             { AdapterTypeTagName, adapterType },
             { SnapshotSchemaVersionTagName, schemaVersion },
             { OperationOutcomeTagName, outcome }
+        });
+    }
+
+    public static void RecordPromptTokensEstimated(
+        int estimatedTokens,
+        string templateVersion,
+        bool wasTruncated,
+        string outcome)
+    {
+        PromptTokensEstimated.Record(estimatedTokens, new TagList
+        {
+            { PromptTemplateVersionTagName, templateVersion },
+            { PromptTruncatedTagName, wasTruncated },
+            { OperationOutcomeTagName, outcome }
+        });
+    }
+
+    public static void RecordLlmRequestDuration(
+        double durationMs,
+        string providerType,
+        string model,
+        string outcome)
+    {
+        LlmRequestDuration.Record(durationMs, new TagList
+        {
+            { ProviderTypeTagName, providerType },
+            { LlmModelTagName, model },
+            { OperationOutcomeTagName, outcome }
+        });
+    }
+
+    public static void RecordLlmRequestCount(
+        string providerType,
+        string model,
+        string outcome)
+    {
+        LlmRequestCount.Add(1, new TagList
+        {
+            { ProviderTypeTagName, providerType },
+            { LlmModelTagName, model },
+            { OperationOutcomeTagName, outcome }
+        });
+    }
+
+    public static void RecordLlmErrorCount(
+        string providerType,
+        string model,
+        string errorCode)
+    {
+        LlmErrorCount.Add(1, new TagList
+        {
+            { ProviderTypeTagName, providerType },
+            { LlmModelTagName, model },
+            { ErrorCodeFieldName, errorCode }
         });
     }
 }

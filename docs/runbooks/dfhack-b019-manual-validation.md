@@ -9,6 +9,12 @@ fortress-souls/list-dwarves
 fortress-souls/get-dwarf-snapshot
 ```
 
+and verify the backend DFHack process adapter status projection:
+
+```text
+GET /api/dwarves/adapter-status
+```
+
 ## Assumptions
 
 - Dwarf Fortress is running.
@@ -102,6 +108,37 @@ Get-Content $out -Raw
 ```
 
 DFHack/Lua stack traces can appear on stdout. The backend must treat stdout as untrusted until JSON parsing succeeds.
+
+## Validate backend DFHack adapter status projection
+
+Configure backend `FortressSouls:DfHack` options for the local DFHack install:
+
+```json
+{
+  "FortressSouls": {
+    "DfHack": {
+      "Enabled": true,
+      "RunPath": "C:\\Program Files (x86)\\Steam\\steamapps\\common\\DFHack\\hack\\dfhack-run.exe",
+      "WorkingDirectory": "C:\\Program Files (x86)\\Steam\\steamapps\\common\\DFHack\\hack",
+      "Host": "127.0.0.1",
+      "Port": 5000,
+      "TimeoutMs": 3000
+    }
+  }
+}
+```
+
+Then query:
+
+```powershell
+Invoke-RestMethod http://localhost:5132/api/dwarves/adapter-status
+```
+
+Expected:
+
+- `adapterType = DfHackProcess`
+- status read performs no process launch and no TCP preflight
+- last outcome/error category update only after list/snapshot operations
 
 ## Validated run
 

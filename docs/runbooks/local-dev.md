@@ -119,6 +119,19 @@ On POSIX shells, use:
 `dev` starts the current backend and frontend shells together. The frontend dev
 server proxies `/api` to the backend on `http://127.0.0.1:5230`.
 
+Focused fake-mode browser smoke test:
+
+```powershell
+cd .\src\frontend
+npm run test:e2e:install
+npm run test:e2e
+```
+
+The smoke harness starts backend/frontend in fake mode on controlled ports with readiness polling:
+
+- backend `http://127.0.0.1:5230`
+- frontend `http://127.0.0.1:5173`
+
 ## Start backend directly
 
 From the repository root:

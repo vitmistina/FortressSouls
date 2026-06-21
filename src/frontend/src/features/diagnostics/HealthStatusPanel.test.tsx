@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import { HealthStatusPanel } from "./HealthStatusPanel";
 
 describe("HealthStatusPanel", () => {
@@ -37,5 +37,53 @@ describe("HealthStatusPanel", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Backend health is unavailable right now.",
     );
+  });
+
+  it("retry button re-triggers health load from error state", async () => {
+    const loadHealth = vi.fn()
+      .mockRejectedValueOnce(new Error("boom"))
+      .mockResolvedValue({
+        health: {
+          status: "ok",
+          version: "0.1.0",
+          adapter: "Fake",
+          provider: "Fake",
+          observability: "ConsoleFallback",
+        },
+      });
+
+    render(<HealthStatusPanel loadHealth={loadHealth} />);
+
+    await screen.findByRole("alert");
+
+    const retryButton = screen.getByRole("button", { name: /retry/i });
+    expect(retryButton).toBeInTheDocument();
+
+    fireEvent.click(retryButton);
+
+    expect(await screen.findByText("ConsoleFallback")).toBeInTheDocument();
+    expect(loadHealth).toHaveBeenCalledTimes(2);
+  });
+
+  it("retry button is keyboard accessible", async () => {
+    const loadHealth = vi.fn()
+      .mockRejectedValueOnce(new Error("boom"))
+      .mockResolvedValue({
+        health: {
+          status: "ok",
+          version: "0.1.0",
+          adapter: "Fake",
+          provider: "Fake",
+          observability: "ConsoleFallback",
+        },
+      });
+
+    render(<HealthStatusPanel loadHealth={loadHealth} />);
+
+    await screen.findByRole("alert");
+
+    const retryButton = screen.getByRole("button", { name: /retry/i });
+    retryButton.focus();
+    expect(retryButton).toHaveFocus();
   });
 });

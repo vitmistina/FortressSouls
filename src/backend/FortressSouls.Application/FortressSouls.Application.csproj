@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\FortressSouls.Domain\FortressSouls.Domain.csproj" />
     <ProjectReference Include="..\FortressSouls.Observability\FortressSouls.Observability.csproj" />
+    <ProjectReference Include="..\FortressSouls.Prompting\FortressSouls.Prompting.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

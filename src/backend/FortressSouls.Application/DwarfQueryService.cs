@@ -13,11 +13,16 @@ public sealed class DwarfQueryService(
 
     public async Task<DwarfListQueryResult> ListDwarvesAsync(CancellationToken cancellationToken)
     {
+        var correlationId = GetCorrelationId();
         using var activity = FortressSoulsTelemetry.ActivitySource.StartActivity(
             FortressSoulsTelemetry.DwarvesListActivityName,
             ActivityKind.Internal);
 
         activity?.SetTag(FortressSoulsTelemetry.AdapterTypeTagName, _adapterDescriptor.AdapterType);
+        if (!string.IsNullOrWhiteSpace(correlationId))
+        {
+            activity?.SetTag(FortressSoulsTelemetry.CorrelationIdTagName, correlationId);
+        }
 
         var stopwatch = Stopwatch.StartNew();
 
@@ -50,24 +55,31 @@ public sealed class DwarfQueryService(
         catch (Exception exception) when (exception is DwarfFortressDataException or DwarfNotFoundException)
         {
             stopwatch.Stop();
-            activity?.SetTag(FortressSoulsTelemetry.OperationOutcomeTagName, MapOutcome(exception));
+            var outcome = MapOutcome(exception);
+            activity?.SetTag(FortressSoulsTelemetry.OperationOutcomeTagName, outcome);
+            activity?.SetTag(FortressSoulsTelemetry.ErrorCategoryTagName, MapErrorCategory(exception));
             FortressSoulsTelemetry.RecordDwarfListDuration(
                 stopwatch.Elapsed.TotalMilliseconds,
                 _adapterDescriptor.AdapterType,
                 "unknown",
-                MapOutcome(exception));
+                outcome);
             throw;
         }
     }
 
     public async Task<DwarfSnapshotQueryResult> GetDwarfSnapshotAsync(DwarfId dwarfId, CancellationToken cancellationToken)
     {
+        var correlationId = GetCorrelationId();
         using var activity = FortressSoulsTelemetry.ActivitySource.StartActivity(
             FortressSoulsTelemetry.DwarvesSnapshotActivityName,
             ActivityKind.Internal);
 
         activity?.SetTag(FortressSoulsTelemetry.AdapterTypeTagName, _adapterDescriptor.AdapterType);
         activity?.SetTag(FortressSoulsTelemetry.DwarfIdTagName, dwarfId.ToString());
+        if (!string.IsNullOrWhiteSpace(correlationId))
+        {
+            activity?.SetTag(FortressSoulsTelemetry.CorrelationIdTagName, correlationId);
+        }
 
         var stopwatch = Stopwatch.StartNew();
 
@@ -100,12 +112,14 @@ public sealed class DwarfQueryService(
         catch (Exception exception) when (exception is DwarfFortressDataException or DwarfNotFoundException)
         {
             stopwatch.Stop();
-            activity?.SetTag(FortressSoulsTelemetry.OperationOutcomeTagName, MapOutcome(exception));
+            var outcome = MapOutcome(exception);
+            activity?.SetTag(FortressSoulsTelemetry.OperationOutcomeTagName, outcome);
+            activity?.SetTag(FortressSoulsTelemetry.ErrorCategoryTagName, MapErrorCategory(exception));
             FortressSoulsTelemetry.RecordDwarfSnapshotDuration(
                 stopwatch.Elapsed.TotalMilliseconds,
                 _adapterDescriptor.AdapterType,
                 "unknown",
-                MapOutcome(exception));
+                outcome);
             throw;
         }
     }
@@ -117,4 +131,15 @@ public sealed class DwarfQueryService(
             DwarfFortressDataException => FortressSoulsTelemetry.ErrorOutcome,
             _ => FortressSoulsTelemetry.ErrorOutcome
         };
+
+    private static string MapErrorCategory(Exception exception) =>
+        exception switch
+        {
+            DwarfNotFoundException => "not_found",
+            DwarfFortressDataException dataException => dataException.ErrorCode.ToString(),
+            _ => "error"
+        };
+
+    private static string? GetCorrelationId() =>
+        Activity.Current?.GetTagItem(FortressSoulsTelemetry.CorrelationIdTagName)?.ToString();
 }
