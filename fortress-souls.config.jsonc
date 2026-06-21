@@ -16,7 +16,7 @@
 
   "dwarfFortress": {
     // Supported adapter types: Fake | JsonFile | DfHackProcess
-    "adapterType": "Fake",
+    "adapterType": "DfHackProcess",
 
     // Used when adapterType is JsonFile.
     "jsonFile": {
@@ -40,7 +40,7 @@
 
   "llm": {
     // Supported provider types: Fake | OpenAiCompatible
-    "providerType": "Fake",
+    "providerType": "OpenAiCompatible",
     "endpoint": "https://openrouter.ai/api/v1",
     "model": "deepseek/deepseek-v3.2",
     "maxOutputTokens": 500,

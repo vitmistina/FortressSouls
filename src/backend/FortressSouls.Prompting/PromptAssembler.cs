@@ -108,7 +108,7 @@ public sealed class PromptAssembler
             conversationMessagesDroppedForCount = true;
         }
 
-        var snapshotJson = JsonSerializer.Serialize(inputs.Snapshot, SerializerOptions);
+        var snapshotJson = JsonSerializer.Serialize(BuildPromptDwarfState(inputs.Snapshot), SerializerOptions);
         var conversationJson = JsonSerializer.Serialize(normalizedConversation, SerializerOptions);
         var playerJson = JsonSerializer.Serialize(new PromptPlayerPayload(normalizedPlayerMessage), SerializerOptions);
 
@@ -155,6 +155,38 @@ public sealed class PromptAssembler
         builder.Append("PLAYER_MESSAGE_JSON:\n").Append(playerJson).Append('\n');
         return builder.ToString();
     }
+
+    private static PromptDwarfStatePayload BuildPromptDwarfState(FortressSouls.Domain.DwarfSnapshot snapshot) =>
+        new(
+            SchemaVersion: snapshot.SchemaVersion,
+            DwarfId: snapshot.RequestedDwarfId.ToString(),
+            DisplayName: snapshot.Identity.ReadableName,
+            Profession: snapshot.Identity.ProfessionName,
+            CurrentJob: snapshot.Work.CurrentJobType,
+            Stress: new PromptStressPayload(
+                Raw: snapshot.Stress.Raw,
+                Category: snapshot.Stress.Category,
+                CategoryScale: snapshot.Stress.CategoryScale),
+            TopSkills: [.. snapshot.PromptCandidates.TopSkills.Select(skill => new PromptSkillSummaryPayload(
+                Token: skill.Token,
+                Effective: skill.Effective,
+                TotalExperience: skill.TotalExperience))],
+            ExtremeTraits: [.. snapshot.PromptCandidates.ExtremeTraits.Select(trait => new PromptTraitSummaryPayload(
+                Token: trait.Token,
+                Value: trait.Value,
+                DeviationFromNeutral50: trait.DeviationFromNeutral50))],
+            StrongValues: [.. snapshot.PromptCandidates.StrongValues.Select(value => new PromptValueSummaryPayload(
+                Token: value.Token,
+                Strength: value.Strength))],
+            StrongNeeds: [.. snapshot.PromptCandidates.StrongNeeds.Select(need => new PromptNeedSummaryPayload(
+                Token: need.Token,
+                FocusLevel: need.FocusLevel,
+                NeedLevel: need.NeedLevel,
+                IsUnmet: need.IsUnmet,
+                IsDeeplyUnmet: need.IsDeeplyUnmet))],
+            Mannerisms: [.. snapshot.PromptCandidates.Mannerisms.Select(mannerism => new PromptMannerismSummaryPayload(
+                Token: mannerism.Token,
+                SituationToken: mannerism.SituationToken))]);
 
     private static PromptAssemblyResult CreateFailure(
         PromptAssemblyFailureCategory category,
@@ -224,6 +256,49 @@ public sealed class PromptAssembler
     private sealed record PromptConversationPayload(
         string Role,
         string Text);
+
+    private sealed record PromptDwarfStatePayload(
+        string SchemaVersion,
+        string DwarfId,
+        string DisplayName,
+        string Profession,
+        string? CurrentJob,
+        PromptStressPayload Stress,
+        IReadOnlyList<PromptSkillSummaryPayload> TopSkills,
+        IReadOnlyList<PromptTraitSummaryPayload> ExtremeTraits,
+        IReadOnlyList<PromptValueSummaryPayload> StrongValues,
+        IReadOnlyList<PromptNeedSummaryPayload> StrongNeeds,
+        IReadOnlyList<PromptMannerismSummaryPayload> Mannerisms);
+
+    private sealed record PromptStressPayload(
+        int Raw,
+        int Category,
+        string CategoryScale);
+
+    private sealed record PromptSkillSummaryPayload(
+        string Token,
+        int Effective,
+        int TotalExperience);
+
+    private sealed record PromptTraitSummaryPayload(
+        string Token,
+        int Value,
+        int DeviationFromNeutral50);
+
+    private sealed record PromptValueSummaryPayload(
+        string Token,
+        int Strength);
+
+    private sealed record PromptNeedSummaryPayload(
+        string Token,
+        int FocusLevel,
+        int NeedLevel,
+        bool IsUnmet,
+        bool IsDeeplyUnmet);
+
+    private sealed record PromptMannerismSummaryPayload(
+        string Token,
+        string SituationToken);
 
     private sealed record PromptPlayerPayload(
         string Text);

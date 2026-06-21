@@ -3,7 +3,9 @@ namespace FortressSouls.Tests;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using FortressSouls.Domain;
+using FortressSouls.DwarfFortress;
 using FortressSouls.Observability;
 using FortressSouls.Prompting;
 
@@ -65,6 +67,30 @@ public sealed class PromptAssemblerTests
             CultureInfo.CurrentCulture = originalCulture;
             CultureInfo.CurrentUICulture = originalUiCulture;
         }
+    }
+
+    [Fact]
+    public async Task Assemble_SucceedsForCanonicalDfHackSnapshotSample()
+    {
+        var adapter = new JsonFileDwarfFortressAdapter(
+            new JsonFileDwarfFortressAdapterOptions
+            {
+                DwarfListPath = Path.Combine(GetRepoRoot(), "dfhack", "samples", "dwarves-list.sample.json"),
+                DwarfSnapshotPath = Path.Combine(GetRepoRoot(), "dfhack", "samples", "dwarf-snapshot.sample.json")
+            });
+
+        var snapshot = await adapter.GetDwarfSnapshotAsync(DwarfId.Parse("6597"), CancellationToken.None);
+
+        var assembler = new PromptAssembler();
+        var result = assembler.Assemble(
+            new PromptInputs(
+                Snapshot: snapshot,
+                Conversation: [],
+                PlayerMessage: "How goes the mine?"));
+
+        Assert.True(result.Succeeded);
+        Assert.NotNull(result.PromptText);
+        Assert.True(result.Diagnostics.EstimatedCharacterCount <= PromptAssemblyOptions.Default.MaxPromptCharacters);
     }
 
     [Fact]
@@ -458,6 +484,14 @@ public sealed class PromptAssemblerTests
         return normalized.EndsWith('\n') ? normalized : normalized + "\n";
     }
 
+    private static string GetRepoRoot([CallerFilePath] string sourceFilePath = "")
+    {
+        var testDirectory = Path.GetDirectoryName(sourceFilePath)
+            ?? throw new InvalidOperationException("Unable to determine the test source directory.");
+
+        return Path.GetFullPath(Path.Combine(testDirectory, "..", "..", ".."));
+    }
+
     private const string ReviewedGoldenPrompt =
         """
         TEMPLATE_VERSION: fortress-souls-prompt-template.v0.2
@@ -481,7 +515,7 @@ public sealed class PromptAssemblerTests
         - Avoid parody, stock catchphrases, or theatrical faux-dwarf dialect; sound like a person, not a stereotype.
         - Keep responses concise unless the player asks for detail.
         DWARF_STATE_JSON:
-        {"schemaVersion":"fortress-souls-dwarf-snapshot.v0.1","source":{"worldLoaded":true,"siteLoaded":true,"mapLoaded":true,"soulPresent":true},"requestedDwarfId":"7001","identity":{"id":"7001","readableName":"Urist Granitefist","professionName":"Miner","professionToken":"MINER","creatureId":"DWARF","casteId":"MALE"},"work":{"currentJobType":"DigChannel"},"stress":{"raw":3,"longterm":2,"category":4,"categoryScale":"0-most-stressed-6-least-stressed"},"skills":{"count":1,"items":[{"token":"MINING","rating":6,"effective":6,"nominal":6,"experience":2200,"totalExperience":4200,"rust":0}]},"personality":{"present":true,"traits":{"count":1,"items":[{"token":"ASSERTIVENESS","value":73,"deviationFromNeutral50":23,"absDeviationFromNeutral50":23}]},"values":{"count":1,"items":[{"token":"HARD_WORK","type":1,"strength":20}]},"needs":{"count":1,"items":[{"token":"DrinkAlcohol","id":1,"deityId":-1,"focusLevel":0,"needLevel":5,"isUnmet":false,"isDeeplyUnmet":false}]},"mannerisms":{"count":1,"items":[{"token":"BEARD_STROKE","situationToken":"WHEN_THINKING"}]}},"promptCandidates":{"topSkills":[{"token":"MINING","rating":6,"effective":6,"nominal":6,"experience":2200,"totalExperience":4200,"rust":0}],"extremeTraits":[{"token":"ASSERTIVENESS","value":73,"deviationFromNeutral50":23,"absDeviationFromNeutral50":23}],"strongValues":[{"token":"HARD_WORK","type":1,"strength":20}],"strongNeeds":[{"token":"DrinkAlcohol","id":1,"deityId":-1,"focusLevel":0,"needLevel":5,"isUnmet":false,"isDeeplyUnmet":false}],"mannerisms":[{"token":"BEARD_STROKE","situationToken":"WHEN_THINKING"}]}}
+        {"schemaVersion":"fortress-souls-dwarf-snapshot.v0.1","dwarfId":"7001","displayName":"Urist Granitefist","profession":"Miner","currentJob":"DigChannel","stress":{"raw":3,"category":4,"categoryScale":"0-most-stressed-6-least-stressed"},"topSkills":[{"token":"MINING","effective":6,"totalExperience":4200}],"extremeTraits":[{"token":"ASSERTIVENESS","value":73,"deviationFromNeutral50":23}],"strongValues":[{"token":"HARD_WORK","strength":20}],"strongNeeds":[{"token":"DrinkAlcohol","focusLevel":0,"needLevel":5,"isUnmet":false,"isDeeplyUnmet":false}],"mannerisms":[{"token":"BEARD_STROKE","situationToken":"WHEN_THINKING"}]}
         INTERPRETATION_GUIDE:
         Dwarves are shaped by labor, craft, stone, metal, drink, duty, status, kin, and old grudges.
         Translate traits, values, needs, and mannerisms into priorities, tone, and reactions rather than raw labels.

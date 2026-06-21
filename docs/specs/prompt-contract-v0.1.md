@@ -41,7 +41,7 @@ Not allowed in prompt assembly:
 
 1. Normalize all inbound text line endings to `\n`.
 2. Trim leading and trailing whitespace from each free-text input string.
-3. Serialize snapshot and conversation JSON using application-owned serializer options.
+3. Derive a compact prompt-state payload from the validated snapshot, then serialize that payload and the conversation JSON using application-owned serializer options.
 4. Assemble sections in this exact order:
    1. `TEMPLATE_VERSION`
    2. `STATIC_GUIDE_VERSION`
@@ -51,6 +51,8 @@ Not allowed in prompt assembly:
    6. `CONVERSATION_JSON`
    7. `PLAYER_MESSAGE_JSON`
 5. Conversation role values are lower-case (`player`, `assistant`).
+
+The compact prompt-state payload should include only the model-relevant dwarf identity, current work, stress summary, and validated prompt candidates. It should not serialize the full application snapshot contract by default.
 
 ## Bounds and budget policy
 

@@ -139,8 +139,8 @@ public sealed class ChatApiTests
             .Content.ReadFromJsonAsync<PromptPreviewResponse>();
 
         Assert.NotNull(preview);
-        Assert.Contains("\"requestedDwarfId\":\"4103\"", preview!.PromptText, StringComparison.Ordinal);
-        Assert.DoesNotContain("\"requestedDwarfId\":\"4102\"", preview.PromptText, StringComparison.Ordinal);
+        Assert.Contains("\"dwarfId\":\"4103\"", preview!.PromptText, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"dwarfId\":\"4102\"", preview.PromptText, StringComparison.Ordinal);
     }
 
     [Fact]
