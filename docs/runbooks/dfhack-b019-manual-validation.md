@@ -15,6 +15,9 @@ and verify the backend DFHack process adapter status projection:
 GET /api/dwarves/adapter-status
 ```
 
+This is optional manual evidence for live mode. Fake mode remains the default
+supported development path.
+
 ## Assumptions
 
 - Dwarf Fortress is running.
@@ -37,6 +40,36 @@ dfhack/samples/
 ```text
 C:\Program Files (x86)\Steam\steamapps\common\DFHack\hack\scripts\fortress-souls\
 ```
+
+## Manual script preparation
+
+Live DFHack validation is optional and manual. Before running the commands
+below, copy the validated repo scripts from:
+
+```text
+dfhack/scripts/fortress-souls/
+```
+
+into the DFHack runtime scripts directory:
+
+```text
+C:\Program Files (x86)\Steam\steamapps\common\DFHack\hack\scripts\fortress-souls\
+```
+
+Example PowerShell:
+
+```powershell
+# Run from the repository root.
+$repoScripts = Join-Path (Get-Location).Path "dfhack\scripts\fortress-souls\*"
+$dfhackRuntime = "C:\Program Files (x86)\Steam\steamapps\common\DFHack\hack\scripts\fortress-souls\"
+
+Copy-Item -Path $repoScripts -Destination $dfhackRuntime -Force
+```
+
+This is a manual preparation step for optional live-mode validation, not a
+turnkey setup flow. `scripts/import-dfhack-scripts.ps1` is the maintainer
+sync-back helper that copies from the DFHack install into this repo; it is not
+the install step for live validation.
 
 ## Validate dwarf list
 
@@ -131,7 +164,7 @@ Configure backend `FortressSouls:DfHack` options for the local DFHack install:
 Then query:
 
 ```powershell
-Invoke-RestMethod http://localhost:5132/api/dwarves/adapter-status
+Invoke-RestMethod http://localhost:5230/api/dwarves/adapter-status
 ```
 
 Expected:

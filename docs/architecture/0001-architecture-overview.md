@@ -2,29 +2,43 @@
 
 ## Intent
 
-This repository is being reconciled into the Fortress Souls v0.1 scaffold around existing DFHack research and validated read-only artifacts. B-001 does not add application code.
+Fortress Souls v0.1 is a local, read-only companion for Dwarf Fortress. The
+browser selects a dwarf from a backend-provided list, the backend fetches a
+validated snapshot for that dwarf ID, deterministic application code assembles
+prompt context, and one configured provider generates the dwarf's prose reply.
 
-## Current Shape
+## Current Repository Shape
 
 - `docs/` holds stable specs, ADRs, runbooks, and research.
-- `dfhack/` holds production-oriented read-only Lua scripts and sample DFHack outputs.
-- `scripts/` holds maintainer utilities.
-- `agent/` is reserved for future task instructions, agent definitions, skills, prompts, and project memory.
-- `src/` is reserved for future application code and remains intentionally empty in B-001.
-- `samples/` is reserved for future app-facing prompt and snapshot examples and remains intentionally empty in B-001.
+- `dfhack/` holds the allowlisted read-only Lua scripts plus retained manual
+  validation samples.
+- `samples/` holds fake app-facing dwarf list and snapshot examples for offline
+  development and tests.
+- `scripts/` holds canonical local dev, format, test, and check entry points,
+  plus maintainer utilities.
+- `src/backend/` holds the modular monolith backend, adapters, observability,
+  prompting, and automated tests.
+- `src/frontend/` holds the local React/Vite UI and browser tests.
+- `.agents/` holds repository guidance, memories, prompts, skills, and agent
+  definitions.
 
 ## v0.1 Architectural Direction
 
-- Modular monolith monorepo.
-- Read-only DFHack integration.
-- DFHack adapters list eligible dwarves and fetch a snapshot by validated dwarf
-  ID; the browser owns selection and does not depend on the unit highlighted in
-  Dwarf Fortress.
-- Deterministic data contracts feeding prompt assembly.
-- Observability from the first backend slice.
+- One backend deployment unit with explicit internal module boundaries.
+- Read-only adapter sequence: `Fake`, `JsonFile`, and optional `DfHackProcess`.
+- The browser owns dwarf identity selection; the Dwarf Fortress UI cursor is
+  not an application input.
+- Deterministic contracts govern dwarf list/snapshot data, prompt assembly,
+  session state, and runtime status projections.
+- Observability is built in from the first backend slice with correlation IDs,
+  structured logs, traces, and metrics.
+- Fake mode is the default supported development path; real provider and live
+  DFHack modes remain optional and separately documented.
 
-## Reconciliation Constraints
+## Constraints
 
-- Preserve existing research, samples, and spike outputs.
-- Do not rename or move existing files during B-001 unless a later task explicitly approves it.
-- If the architecture direction changes, update this document and the relevant ADRs in the same change set.
+- Keep game mutation impossible by construction.
+- Do not add generic DFHack execution or model tool surfaces.
+- Keep prompt/response content and secrets out of default telemetry.
+- If the architecture direction changes, update this document and the relevant
+  ADRs in the same change set.

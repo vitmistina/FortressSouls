@@ -1,12 +1,13 @@
-# Fortress Souls v0.1 Implementation Scaffold
+# Fortress Souls v0.1 Specification
 
-## Codex-Ready Specification, Research Plan, and Backlog
+## Authoritative Product Spec and Implementation Guidance
 
-**Status:** Draft
+**Status:** Active
 **Document version:** 0.1
-**Target implementation version:** Fortress Souls v0.1
-**Audience:** Codex / GPT-5.5 / GPT-5.4 implementation agents working one backlog item at a time
+**Target release:** Fortress Souls v0.1
+**Audience:** Contributors implementing, reviewing, or operating Fortress Souls v0.1
 **Architecture style:** Modular monolith in a monorepo
+**How to use this document:** Sections 1-3 define the authoritative product slice and architecture constraints for v0.1. Later sections capture repository structure, backlog breakdown, and delivery guidance that support implementation without overriding accepted ADRs.
 **Primary outcome:** A local web app lets the player select a dwarf from a live or mocked Dwarf Fortress source and chat with that dwarf using an LLM, with no gameplay persistence, no tools, and no game mutation.
 
 ---
@@ -76,70 +77,80 @@ No tiny throne rooms hidden under the floorboards. One room, one chair, one talk
 
 ## 2.1 The deterministic/probabilistic seam
 
-Version 0.1 must preserve this boundary:
+Version 0.1 preserves a hard seam between deterministic application behavior
+and probabilistic model output. Deterministic code owns data selection,
+validation, prompt construction, configuration, session state, and policy
+enforcement. The model owns prose generation only.
 
-| Concern                   | Owner                          |
-| ------------------------- | ------------------------------ |
-| Dwarf state extraction    | Deterministic application code |
-| Prompt assembly           | Deterministic application code |
-| Configuration and secrets | Deterministic application code |
-| LLM response generation   | Probabilistic model            |
-| Displaying response       | Deterministic application code |
-| Mutating Dwarf Fortress   | Not allowed in v0.1            |
+| Concern | Owner |
+| --- | --- |
+| Dwarf list and snapshot extraction | Deterministic application code |
+| Snapshot validation and normalization | Deterministic application code |
+| Prompt assembly, ordering, and truncation | Deterministic application code |
+| Configuration, secrets, and provider selection | Deterministic application code |
+| Session state and browser-visible status | Deterministic application code |
+| LLM response generation | Probabilistic model |
+| Displaying the response | Deterministic application code |
+| Mutating Dwarf Fortress | Not allowed in v0.1 |
 
-The model may produce prose only.
-
-The model must not receive direct access to DFHack commands, filesystem commands, shell commands, or write-capable game APIs.
+The model may generate prose only. It must not repair malformed snapshots,
+choose tools, execute DFHack or shell commands, access the filesystem, or call
+write-capable APIs. Safety decisions remain in deterministic application code.
 
 ## 2.2 Read-only by construction
 
-Version 0.1 should make write actions impossible, not merely discouraged.
+Version 0.1 makes game mutation impossible by construction rather than by
+policy alone.
 
-There should be no backend endpoint that mutates Dwarf Fortress.
+* The frontend selects a dwarf from a backend-provided eligible list.
+* The backend fetches a snapshot only for a validated dwarf ID.
+* Live data access is limited to allowlisted read-only DFHack commands that
+  emit JSON.
+* There is no generic DFHack execution endpoint, no arbitrary script-path
+  execution, and no model tool surface.
+* The application does not mirror or depend on the unit currently highlighted
+  in the Dwarf Fortress UI.
 
-There should be no model tool surface.
-
-There should be no “execute arbitrary DFHack command” escape hatch.
-
-If debugging requires raw DFHack command execution, it belongs outside the app in developer documentation, not in the product surface.
+All write-capable game interactions remain out of scope for v0.1.
 
 ## 2.3 Modular monolith, not premature microservices
 
-The backend is one deployable application with explicit internal modules.
+The backend ships as one deployable application with explicit internal module
+boundaries and inward dependency direction:
 
-Do not create separate services for:
+```text
+Domain <- Application <- Adapters / API composition
+```
 
-* LLM provider,
-* prompt assembler,
-* dwarf adapter,
-* observability,
-* frontend backend-for-frontend.
-
-Use separate modules/projects/namespaces inside one backend process.
-
-The architecture should make later extraction possible without performing it now.
+Prompt assembly, dwarf adapters, observability, provider calls, and HTTP
+delivery stay as modules within one backend process. Do not create separate
+services for the LLM provider, prompt assembler, dwarf adapter, observability,
+or a backend-for-frontend. The frontend remains separate source in the same
+repository and depends on published HTTP contracts, not backend implementation
+types.
 
 ## 2.4 Monorepo
 
-All source, docs, tests, agent primitives, scripts, and local orchestration live in one repository.
-
-The repository is the unit Codex should understand.
+Docs, DFHack scripts, backend, frontend, tests, fixtures, and local
+orchestration live in one repository. The monorepo is the unit of review,
+documentation, and change for v0.1. It keeps product constraints, allowlisted
+scripts, fake fixtures, and implementation code aligned without creating
+deployment boundaries.
 
 ## 2.5 Instrumentation first
 
-Observability is part of v0.1, not a luxury.
+Observability is required from the first backend slice.
 
-The first working slice must expose enough telemetry to answer:
+The system must make it easy to answer:
 
-* Did the app connect to the data source?
-* How long did dwarf listing take?
-* How long did snapshot extraction take?
-* What model provider was used?
-* How long did the LLM call take?
+* Did the app connect to the dwarf data source?
+* How long did dwarf listing and snapshot extraction take?
+* Which provider and model handled a chat turn?
 * Did prompt assembly fail?
-* Was the failure in DFHack, the backend, the provider, or the browser?
+* Was a failure in DFHack, the backend, the provider, or the browser?
 
-Logs alone are not sufficient. Use structured logs, traces, and basic metrics.
+Logs alone are not sufficient. Use structured logs, traces, and metrics with
+correlation and redaction built in from the start.
 
 ---
 
@@ -155,15 +166,14 @@ Use:
 * modular monolith structure,
 * OpenTelemetry,
 * structured logging,
-* xUnit or equivalent test framework.
+* xUnit for backend tests.
 
 Why:
 
-* strong fit for the user’s background,
-* good local API development,
-* good observability support,
-* simple modular monolith structure,
-* easy later move to richer orchestration.
+* strong fit for a local modular monolith,
+* strong typing for versioned contracts and validation,
+* good local API and observability support,
+* straightforward deterministic testing with fake adapters.
 
 ## 3.2 Frontend
 
@@ -172,44 +182,37 @@ Use:
 * TypeScript,
 * React,
 * Vite,
-* TanStack Query or a similarly lightweight query layer,
+* a lightweight query layer, with TanStack Query as the default choice when
+  the UI benefits from one,
 * plain CSS or a minimal component library.
 
-Avoid heavy UI frameworks in v0.1 unless the implementation agent can justify the added complexity.
+Avoid heavy UI frameworks in v0.1 unless a concrete requirement justifies the
+added complexity.
 
-The UI is simple:
+The UI is intentionally simple:
 
 * connection status,
 * dwarf list,
 * selected dwarf panel,
-* snapshot debug panel,
 * chat panel,
-* provider error display.
+* provider and status error display.
 
 ## 3.3 Local orchestration
 
 Use thin repository scripts to start the backend and frontend and to run the
-canonical format/test/check commands. Use the standalone Aspire Dashboard as
-an optional local telemetry viewer.
+canonical format, test, and check commands. Use the standalone Aspire
+Dashboard as an optional local telemetry viewer.
 
-Do not add Aspire AppHost, ServiceDefaults, or Docker Compose in B-006. A later
-accepted decision may add them only if the script-based workflow proves
-insufficient.
-
-Important:
-
-* Do not let orchestration choices turn the app into microservices.
-* Aspire or Docker Compose is local scaffolding, not a distributed architecture mandate.
+Do not treat Aspire AppHost, ServiceDefaults, or Docker Compose as required
+v0.1 architecture. Those choices are local scaffolding only and must not imply
+microservice boundaries. Telemetry export must not become a product startup
+dependency.
 
 ## 3.4 Observability
 
-Use:
-
-* OpenTelemetry traces,
-* OpenTelemetry metrics,
-* structured logs,
-* OTLP export,
-* Aspire Dashboard for local inspection if practical.
+Use OpenTelemetry traces and metrics plus structured backend logs. Prefer OTLP
+export to a local Aspire Dashboard when configured, with console export as the
+fallback when the dashboard is unavailable.
 
 Minimum custom spans:
 
@@ -246,40 +249,37 @@ durationMs
 errorCode
 ```
 
-## 3.5 LLM provider
+Never log API keys, Authorization headers, full prompts, full model responses,
+or raw DFHack output by default.
 
-v0.1 should support:
+## 3.5 LLM provider strategy
 
-1. `FakeLlmProvider` for tests and offline UI development.
-2. One real provider:
+v0.1 supports:
 
-   * preferably OpenAI-compatible HTTP endpoint, or
-   * OpenAI provider using current recommended API shape.
+1. `FakeChatProvider` for tests and offline UI development.
+2. One real provider behind an application-owned chat-provider interface.
 
-Provider-specific DTOs must not leak into domain modules.
-
-The domain-level interface should be simple:
-
-```csharp
-public interface IChatProvider
-{
-    Task<ChatProviderResult> SendAsync(
-        ChatProviderRequest request,
-        CancellationToken cancellationToken);
-}
-```
+The first real provider should use an OpenAI-compatible HTTP chat endpoint.
+Provider-specific DTOs, headers, and exceptions stay inside the LLM adapter.
+Do not add streaming, model selection UI, tool calling, memory, or a provider
+marketplace in v0.1.
 
 ## 3.6 Dwarf Fortress adapter
 
-v0.1 should support:
+v0.1 supports adapters in this order:
 
 1. `FakeDwarfFortressAdapter`
 2. `JsonFileDwarfFortressAdapter`
-3. `DfHackDwarfFortressAdapter`
+3. a `DfHackProcess`-backed live adapter using `dfhack-run` and allowlisted
+   read-only scripts
 
-The fake adapter comes first. The real adapter comes after the API and UI are stable.
+The live adapter may invoke only the allowlisted read-only commands
+`fortress-souls/diagnose`, `fortress-souls/list-dwarves`, and
+`fortress-souls/get-dwarf-snapshot`.
 
-The fake adapter is not “throwaway.” It is a permanent testing primitive.
+The fake adapter comes first and remains a permanent testing primitive. The
+JSON-file adapter preserves canonical samples for development and validation.
+The live process adapter follows once API and UI contracts are stable.
 
 ---
 
@@ -294,14 +294,11 @@ fortress-souls/
   docs/
     architecture/
       0001-architecture-overview.md
-      0002-deterministic-probabilistic-seam.md
-      0003-module-boundaries.md
-      0004-dfhack-integration-options.md
     specs/
       fortress-souls-v0.1.spec.md
-      dwarf-snapshot-v0.1.schema.md
       prompt-contract-v0.1.md
       observability-v0.1.md
+      minispecs/
     backlog/
       v0.1-backlog.md
     decisions/
@@ -309,29 +306,33 @@ fortress-souls/
       adr-0002-modular-monolith.md
       adr-0003-dfhack-adapter.md
       adr-0004-observability.md
+      adr-0005-llm-provider-strategy.md
+      adr-0006-coding-model-routing-and-mini-specs.md
     runbooks/
       local-dev.md
-      dfhack-setup.md
+      dfhack-b019-manual-validation.md
       provider-configuration.md
-      troubleshooting.md
     research/
       dfhack-field-map.md
       dfhack-command-invocation.md
+      dfhack-live-state-probes.md
       llm-provider-options.md
 
-  agent/
+  .agents/
     instructions/
       backend.instructions.md
       frontend.instructions.md
-      testing.instructions.md
       observability.instructions.md
+      testing.instructions.md
       dfhack.instructions.md
       prompting.instructions.md
     agents/
       architect.agent.md
       backend-dev.agent.md
+      build-master.agent.md
       frontend-dev.agent.md
       dfhack-researcher.agent.md
+      editor.agent.md
       reviewer.agent.md
     skills/
       modular-monolith-boundaries/
@@ -349,15 +350,15 @@ fortress-souls/
       update-memory.prompt.md
     memory/
       project.memory.md
-    hooks/
-      pre-commit-checks.md
-      post-task-summary.md
 
   src/
     backend/
-      FortressSouls.sln
+      Directory.Build.props
+      FortressSouls.slnx
+      global.json
       FortressSouls.Api/
       FortressSouls.Application/
+      FortressSouls.DfHackProcessTestHost/
       FortressSouls.Domain/
       FortressSouls.DwarfFortress/
       FortressSouls.Llm/
@@ -369,31 +370,31 @@ fortress-souls/
       package.json
       vite.config.ts
       tsconfig.json
+      e2e/
       src/
-        app/
         api/
-        components/
+        app/
         features/
-          dwarves/
-          chat/
-          diagnostics/
         styles/
+        test/
 
   dfhack/
     scripts/
       fortress-souls/
+        diagnose.lua
         list-dwarves.lua
         get-dwarf-snapshot.lua
     samples/
+      b019-dwarf-snapshots.bundle.json
+      b019-snapshot-summary.csv
       dwarves-list.sample.json
       dwarf-snapshot.sample.json
 
   samples/
     snapshots/
-      dwarf-urist-v0.1.json
-      dwarf-miner-v0.1.json
-    prompts/
-      simple-chat.prompt.sample.txt
+      fake-dwarf-4101.v0.1.json
+      fake-dwarf-4102.v0.1.json
+      fake-dwarf-4103.v0.1.json
 
   scripts/
     dev.ps1
@@ -434,8 +435,8 @@ Example principle:
 ```text
 If working on DFHack integration, read:
 - docs/research/dfhack-command-invocation.md
-- agent/instructions/dfhack.instructions.md
-- agent/skills/dfhack-adapter-safety/SKILL.md
+- .agents/instructions/dfhack.instructions.md
+- .agents/skills/dfhack-adapter-safety/SKILL.md
 ```
 
 ## 5.2 Reduced Scope
@@ -512,9 +513,9 @@ For example, a prompt assembly task should load:
 ```text
 AGENTS.md
 docs/specs/prompt-contract-v0.1.md
-agent/instructions/prompting.instructions.md
-agent/skills/prompt-contracts/SKILL.md
-docs/backlog/v0.1-backlog.md#relevant-item
+.agents/instructions/prompting.instructions.md
+.agents/skills/prompt-contracts/SKILL.md
+docs/backlog/v0.1-backlog.md#b-012
 ```
 
 ---
@@ -753,7 +754,7 @@ Returns:
 {
   "items": [
     {
-      "id": "unit-123",
+      "id": "4101",
       "displayName": "Urist McMiner",
       "profession": "Miner",
       "currentJob": "Dig",
@@ -779,7 +780,7 @@ Returns:
 ```json
 {
   "schemaVersion": "dwarf-snapshot.v0.1",
-  "dwarfId": "unit-123",
+  "dwarfId": "4101",
   "extractedAt": "2026-06-18T00:00:00Z",
   "gameTick": 123456,
   "identity": {
@@ -829,7 +830,7 @@ Request:
 
 ```json
 {
-  "dwarfId": "unit-123"
+  "dwarfId": "4101"
 }
 ```
 
@@ -837,8 +838,8 @@ Response:
 
 ```json
 {
-  "sessionId": "chat-abc",
-  "dwarfId": "unit-123"
+  "sessionId": "chat-00000001",
+  "dwarfId": "4101"
 }
 ```
 
@@ -860,8 +861,8 @@ Response:
 
 ```json
 {
-  "sessionId": "chat-abc",
-  "dwarfId": "unit-123",
+  "sessionId": "chat-00000001",
+  "dwarfId": "4101",
   "assistantMessage": {
     "role": "assistant",
     "text": "Unhappy? I would call it a professional objection to being sent into damp stone again."
@@ -1228,9 +1229,9 @@ Human checkpoint: yes/no
 ### Context to load
 
 - AGENTS.md
-- docs/specs/...
-- agent/instructions/...
-- agent/skills/...
+- docs/specs/fortress-souls-v0.1.spec.md
+- .agents/instructions/backend.instructions.md
+- .agents/skills/modular-monolith-boundaries/SKILL.md
 
 ### Implementation scope
 
@@ -1299,11 +1300,11 @@ AGENTS.md
 docs/specs/fortress-souls-v0.1.spec.md
 docs/backlog/v0.1-backlog.md
 docs/architecture/0001-architecture-overview.md
-agent/instructions/
-agent/agents/
-agent/skills/
-agent/prompts/
-agent/memory/project.memory.md
+.agents/instructions/
+.agents/agents/
+.agents/skills/
+.agents/prompts/
+.agents/memory/project.memory.md
 src/
 dfhack/
 samples/
@@ -1331,7 +1332,7 @@ Root `AGENTS.md` must include:
 * [ ] Root `AGENTS.md` is concise and points to deeper context.
 * [ ] v0.1 spec is placed under `docs/specs`.
 * [ ] Backlog is placed under `docs/backlog`.
-* [ ] `agent/memory/project.memory.md` exists with initial decisions.
+* [ ] `.agents/memory/project.memory.md` exists with initial decisions.
 
 ### Validation commands
 
@@ -1362,7 +1363,6 @@ Create the first useful set of agent primitives.
 * `docs/specs/fortress-souls-v0.1.spec.md`
 
 ### Implementation scope
-1
 Create:
 
 ```text
@@ -1392,9 +1392,7 @@ Create:
 
 Each primitive should be short, scoped, and useful.
 
-2 Extend/update AGENTS.md
-
-It should be short, scoped and useful, while demanding reasonable engineering best practices. Test coverage, et cetera.
+Extend or update `AGENTS.md` so it stays short, scoped, and useful while still requiring reasonable engineering best practices, including test coverage.
 
 ### Out of scope
 
@@ -1436,7 +1434,7 @@ Create initial ADRs so implementation agents do not repeatedly relitigate the st
 
 * `AGENTS.md`
 * `docs/specs/fortress-souls-v0.1.spec.md`
-* `agent/skills/modular-monolith-boundaries/SKILL.md`
+* `.agents/skills/modular-monolith-boundaries/SKILL.md`
 
 ### Implementation scope
 
@@ -1500,17 +1498,18 @@ Create the backend solution and modular project structure.
 * `AGENTS.md`
 * `docs/decisions/adr-0001-stack.md`
 * `docs/decisions/adr-0002-modular-monolith.md`
-* `agent/instructions/backend.instructions.md`
-* `agent/skills/modular-monolith-boundaries/SKILL.md`
+* `.agents/instructions/backend.instructions.md`
+* `.agents/skills/modular-monolith-boundaries/SKILL.md`
 
 ### Implementation scope
 
 Create .NET solution:
 
 ```text
-src/backend/FortressSouls.sln
+src/backend/FortressSouls.slnx
 src/backend/FortressSouls.Api
 src/backend/FortressSouls.Application
+src/backend/FortressSouls.DfHackProcessTestHost
 src/backend/FortressSouls.Domain
 src/backend/FortressSouls.DwarfFortress
 src/backend/FortressSouls.Llm
@@ -1544,8 +1543,8 @@ Add:
 ### Validation commands
 
 ```text
-dotnet build src/backend/FortressSouls.sln
-dotnet test src/backend/FortressSouls.sln
+dotnet build src/backend/FortressSouls.slnx
+dotnet test src/backend/FortressSouls.slnx
 ```
 
 ### Stop conditions
@@ -1569,8 +1568,8 @@ Add observability before feature complexity arrives.
 
 * `AGENTS.md`
 * `docs/decisions/adr-0004-observability.md`
-* `agent/instructions/observability.instructions.md`
-* `agent/skills/observability-first/SKILL.md`
+* `.agents/instructions/observability.instructions.md`
+* `.agents/skills/observability-first/SKILL.md`
 
 ### Implementation scope
 
@@ -1604,8 +1603,8 @@ backlog item that introduces each operation.
 ### Validation commands
 
 ```text
-dotnet build src/backend/FortressSouls.sln
-dotnet test src/backend/FortressSouls.sln
+dotnet build src/backend/FortressSouls.slnx
+dotnet test src/backend/FortressSouls.slnx
 ```
 
 ### Stop conditions
@@ -1687,12 +1686,13 @@ Human checkpoint: no
 
 ### Goal
 
-Create the React/Vite frontend shell.
+Create the React/Vite frontend foundation for the browser-driven v0.1 user
+flow.
 
 ### Context to load
 
 * `AGENTS.md`
-* `agent/instructions/frontend.instructions.md`
+* `.agents/instructions/frontend.instructions.md`
 
 ### Implementation scope
 
@@ -1710,14 +1710,14 @@ UI should show:
 
 * app title,
 * backend health status,
-* placeholder dwarf list,
-* placeholder selected dwarf,
-* placeholder chat panel.
+* structure for dwarf list and selected dwarf details,
+* structure for runtime diagnostics,
+* structure for the chat panel.
 
 ### Out of scope
 
-* No real dwarf API integration yet.
-* No chat implementation yet.
+* No real dwarf API integration beyond health yet.
+* No chat implementation beyond the initial shell yet.
 * No styling rabbit hole.
 
 ### Acceptance criteria
@@ -1759,9 +1759,9 @@ mapping against retained DFHack JSON samples through a read-only file adapter.
 ### Context to load
 
 * `AGENTS.md`
-* `docs/specs/dwarf-snapshot-v0.1.schema.md`
-* `agent/instructions/backend.instructions.md`
-* `agent/instructions/dfhack.instructions.md`
+* `docs/specs/minispecs/B-008-dwarf-contracts.md`
+* `.agents/instructions/backend.instructions.md`
+* `.agents/instructions/dfhack.instructions.md`
 
 ### Implementation scope
 
@@ -1812,7 +1812,7 @@ paths never come from browser/API input.
 ### Validation commands
 
 ```text
-dotnet test src/backend/FortressSouls.sln
+dotnet test src/backend/FortressSouls.slnx
 ```
 
 ### Stop conditions
@@ -1836,8 +1836,8 @@ for offline development, frontend work, and tests.
 ### Context to load
 
 * `AGENTS.md`
-* `agent/instructions/testing.instructions.md`
-* `agent/instructions/dfhack.instructions.md`
+* `.agents/instructions/testing.instructions.md`
+* `.agents/instructions/dfhack.instructions.md`
 
 ### Implementation scope
 
@@ -1886,7 +1886,7 @@ Each should have distinct:
 ### Validation commands
 
 ```text
-dotnet test src/backend/FortressSouls.sln
+dotnet test src/backend/FortressSouls.slnx
 ```
 
 ### Stop conditions
@@ -1919,7 +1919,7 @@ Let the player see and select dwarves from the backend.
 ### Context to load
 
 * `AGENTS.md`
-* `agent/instructions/frontend.instructions.md`
+* `.agents/instructions/frontend.instructions.md`
 * `docs/specs/fortress-souls-v0.1.spec.md`
 
 ### Implementation scope
@@ -1964,7 +1964,7 @@ mirror the unit highlighted in the Dwarf Fortress UI.
 cd src/frontend
 npm run build
 npm test
-dotnet test ../backend/FortressSouls.sln
+dotnet test ../backend/FortressSouls.slnx
 ```
 
 ### Stop conditions
@@ -1990,8 +1990,8 @@ Build deterministic prompt assembly for v0.1.
 
 * `AGENTS.md`
 * `docs/specs/prompt-contract-v0.1.md`
-* `agent/instructions/prompting.instructions.md`
-* `agent/skills/prompt-contracts/SKILL.md`
+* `.agents/instructions/prompting.instructions.md`
+* `.agents/skills/prompt-contracts/SKILL.md`
 
 ### Implementation scope
 
@@ -2033,7 +2033,7 @@ The assembler must include:
 ### Validation commands
 
 ```text
-dotnet test src/backend/FortressSouls.sln
+dotnet test src/backend/FortressSouls.slnx
 ```
 
 ### Stop conditions
@@ -2068,9 +2068,9 @@ send messages through a minimal provider port and deterministic fake.
 
 * `AGENTS.md`
 * `docs/specs/fortress-souls-v0.1.spec.md`
-* `agent/instructions/backend.instructions.md`
-* `agent/skills/observability-first/SKILL.md`
-* `agent/skills/prompt-contracts/SKILL.md`
+* `.agents/instructions/backend.instructions.md`
+* `.agents/skills/observability-first/SKILL.md`
+* `.agents/skills/prompt-contracts/SKILL.md`
 
 ### Implementation scope
 
@@ -2128,7 +2128,7 @@ fortresssouls.llm.chat
 ### Validation commands
 
 ```text
-dotnet test src/backend/FortressSouls.sln
+dotnet test src/backend/FortressSouls.slnx
 ```
 
 ### Stop conditions
@@ -2151,7 +2151,7 @@ Let the player chat with the selected dwarf in the browser.
 ### Context to load
 
 * `AGENTS.md`
-* `agent/instructions/frontend.instructions.md`
+* `.agents/instructions/frontend.instructions.md`
 * `docs/specs/fortress-souls-v0.1.spec.md`
 
 ### Implementation scope
@@ -2221,7 +2221,7 @@ Add one real provider while preserving fake provider support.
 * `AGENTS.md`
 * `docs/research/llm-provider-options.md`
 * `docs/runbooks/provider-configuration.md`
-* `agent/instructions/backend.instructions.md`
+* `.agents/instructions/backend.instructions.md`
 
 ### Implementation scope
 
@@ -2276,7 +2276,7 @@ latency/time metadata. Status reads perform no provider request.
 ### Validation commands
 
 ```text
-dotnet test src/backend/FortressSouls.sln
+dotnet test src/backend/FortressSouls.slnx
 ```
 
 Manual validation with real provider if credentials are available.
@@ -2302,8 +2302,8 @@ consistent, understandable, correlated, and safe in the browser.
 ### Context to load
 
 * `AGENTS.md`
-* `agent/instructions/frontend.instructions.md`
-* `agent/skills/observability-first/SKILL.md`
+* `.agents/instructions/frontend.instructions.md`
+* `.agents/skills/observability-first/SKILL.md`
 
 ### Implementation scope
 
@@ -2333,7 +2333,7 @@ Complete safe runtime status projections and frontend presentation for:
 ### Validation commands
 
 ```text
-dotnet test src/backend/FortressSouls.sln
+dotnet test src/backend/FortressSouls.slnx
 cd src/frontend && npm run build && npm test
 ```
 
@@ -2359,8 +2359,8 @@ Determine how the backend should call DFHack for v0.1.
 ### Context to load
 
 * `AGENTS.md`
-* `agent/instructions/dfhack.instructions.md`
-* `agent/prompts/research-spike.prompt.md`
+* `.agents/instructions/dfhack.instructions.md`
+* `.agents/prompts/research-spike.prompt.md`
 
 ### Implementation scope
 
@@ -2420,8 +2420,8 @@ Create read-only Lua scripts that output dwarf list and snapshot JSON.
 * `AGENTS.md`
 * `docs/research/dfhack-command-invocation.md`
 * `docs/research/dfhack-field-map.md`
-* `agent/instructions/dfhack.instructions.md`
-* `agent/skills/dfhack-adapter-safety/SKILL.md`
+* `.agents/instructions/dfhack.instructions.md`
+* `.agents/skills/dfhack-adapter-safety/SKILL.md`
 
 ### Implementation scope
 
@@ -2493,8 +2493,8 @@ Call DFHack scripts from the backend using the chosen invocation method.
 * `AGENTS.md`
 * `docs/decisions/adr-0003-dfhack-adapter.md`
 * `docs/research/dfhack-command-invocation.md`
-* `agent/instructions/dfhack.instructions.md`
-* `agent/skills/dfhack-adapter-safety/SKILL.md`
+* `.agents/instructions/dfhack.instructions.md`
+* `.agents/skills/dfhack-adapter-safety/SKILL.md`
 
 ### Implementation scope
 
@@ -2540,7 +2540,7 @@ Safety:
 ### Validation commands
 
 ```text
-dotnet test src/backend/FortressSouls.sln
+dotnet test src/backend/FortressSouls.slnx
 Manual DFHack smoke test
 ```
 
@@ -2566,7 +2566,7 @@ Create a repeatable fake-mode test proving the full app loop.
 ### Context to load
 
 * `AGENTS.md`
-* `agent/instructions/testing.instructions.md`
+* `.agents/instructions/testing.instructions.md`
 
 ### Implementation scope
 
@@ -2631,32 +2631,31 @@ evidence-backed documentation/runbook gaps.
 ### Context to load
 
 * `AGENTS.md`
-* `agent/prompts/update-memory.prompt.md`
-* `agent/memory/project.memory.md`
+* `.agents/prompts/update-memory.prompt.md`
+* `.agents/memory/project.memory.md`
 
 ### Implementation scope
 
-Update:
+Update only the existing documentation surfaces that describe the implemented
+v0.1 loop:
 
 ```text
 README.md
 docs/runbooks/local-dev.md
-docs/runbooks/dfhack-setup.md
 docs/runbooks/provider-configuration.md
-docs/runbooks/troubleshooting.md
+docs/runbooks/dfhack-b019-manual-validation.md
 docs/specs/fortress-souls-v0.1.spec.md
-agent/memory/project.memory.md
+.agents/memory/project.memory.md
 ```
 
-README must include:
+README and runbooks must reflect:
 
 * what v0.1 does,
 * what it does not do,
-* setup,
-* fake mode,
-* real provider mode,
-* DFHack mode if available,
-* troubleshooting,
+* fake mode as the default local path,
+* real provider configuration,
+* optional DFHack manual validation,
+* safe diagnostics and troubleshooting entry points,
 * safety guarantee: read-only.
 
 ### Out of scope
@@ -2666,16 +2665,16 @@ README must include:
 
 ### Acceptance criteria
 
-* [ ] New developer can run fake mode from README.
-* [ ] Provider config is documented.
-* [ ] DFHack setup is documented.
-* [ ] Known limitations are clear.
+* [ ] New developer can run fake mode and repository checks from README.
+* [ ] Provider configuration is documented.
+* [ ] Optional DFHack manual validation is documented without requiring a separate setup runbook.
+* [ ] Known limitations and diagnostics entry points are clear.
 * [ ] Project memory records current decisions.
 
 ### Validation commands
 
 ```text
-Follow README from a clean shell where practical.
+Follow README and local-dev steps from a clean shell where practical.
 ```
 
 ### Stop conditions
@@ -2700,8 +2699,8 @@ Review whether v0.1 is coherent, safe, and ready to tag.
 * `AGENTS.md`
 * `docs/specs/fortress-souls-v0.1.spec.md`
 * `docs/backlog/v0.1-backlog.md`
-* `agent/agents/reviewer.agent.md`
-* `agent/prompts/review-backlog-item.prompt.md`
+* `.agents/agents/reviewer.agent.md`
+* `.agents/prompts/review-backlog-item.prompt.md`
 
 ### Implementation scope
 
@@ -2741,7 +2740,7 @@ docs/reviews/v0.1-release-review.md
 
 ```text
 scripts/test
-dotnet test src/backend/FortressSouls.sln
+dotnet test src/backend/FortressSouls.slnx
 cd src/frontend && npm run build && npm test
 ```
 

@@ -6,21 +6,31 @@ Related ADR: `docs/decisions/adr-0004-observability.md`
 
 ## Purpose
 
-Make local startup repeatable without turning the modular monolith into a petting zoo of tiny services.
+Keep local startup repeatable for the implemented v0.1 product loop without
+turning the modular monolith into a cluster of accidental services.
 
-v0.1 local development has three useful modes:
-
-1. backend only,
-2. backend plus frontend,
-3. backend plus frontend plus local telemetry dashboard.
+Fake mode is the default supported development path. JSON-file mode and live
+DFHack mode remain optional for targeted validation work.
 
 ## Prerequisites
 
 Required:
 
 - .NET SDK matching the project target,
-- Node.js for the frontend,
+- Node.js and npm for the frontend,
 - PowerShell on Windows.
+
+Fresh workspaces need one frontend restore before canonical dev, format, test,
+or check commands can succeed:
+
+```powershell
+cd .\src\frontend
+npm install
+cd ..\..
+```
+
+`src/frontend/package-lock.json` is committed, but local packages are not
+vendored.
 
 If local script execution is blocked, run the commands with
 `powershell -ExecutionPolicy Bypass -File ...` for the current session.
@@ -28,7 +38,23 @@ If local script execution is blocked, run the commands with
 Optional:
 
 - Docker Desktop, if using the Aspire Dashboard container,
-- Aspire CLI, if using `npx -y @microsoft/aspire-cli dashboard run`.
+- Aspire CLI, if using `npx -y @microsoft/aspire-cli dashboard run`,
+- DFHack, if validating the live adapter,
+- provider credentials, if validating the real provider.
+
+## Default local endpoints
+
+- Backend HTTP base: `http://localhost:5230`
+- Backend HTTPS base through the `https` launch profile: `https://localhost:7215`
+- Health: `GET /api/health`
+- Provider status: `GET /api/provider/status`
+- Dwarf adapter status: `GET /api/dwarves/adapter-status`
+- Dwarf list: `GET /api/dwarves`
+- Dwarf snapshot: `GET /api/dwarves/{dwarfId}/snapshot`
+- Create chat session: `POST /api/chat/sessions`
+- Send chat message: `POST /api/chat/sessions/{sessionId}/messages`
+- Prompt preview: `GET /api/chat/sessions/{sessionId}/prompt-preview`
+  in development only
 
 ## Environment defaults
 
@@ -39,11 +65,6 @@ $env:FortressSouls__DwarfFortress__AdapterType = "Fake"
 $env:FortressSouls__Llm__ProviderType = "Fake"
 ```
 
-The dwarf adapter is selected explicitly through
-`FortressSouls__DwarfFortress__AdapterType`. When it is omitted, the app falls
-back to the legacy `FortressSouls__DfHack__Enabled` switch for older local
-configurations.
-
 For local JSON-file mode with one fixed snapshot:
 
 ```powershell
@@ -53,14 +74,14 @@ $env:FortressSouls__DwarfFortress__JsonFile__DwarfSnapshotPath = "C:\path\to\mat
 $env:FortressSouls__Llm__ProviderType = "Fake"
 ```
 
-`DwarfSnapshotPath` points to one specific snapshot file. The adapter checks that
-the browser-selected dwarf ID matches both `requestedUnitId` and `identity.id`
-inside that file.
+`DwarfSnapshotPath` points to one specific snapshot file. The adapter checks
+that the browser-selected dwarf ID matches both `requestedUnitId` and
+`identity.id` inside that file.
 
 Do not pair a multi-dwarf list with one fixed snapshot file unless the list
 contains only that same dwarf. For predictable browser behavior, either keep
 the JSON-file list to the single dwarf represented by the snapshot file or use
-`Fake`/`DfHackProcess` mode when you want to switch between multiple dwarves.
+`Fake` or `DfHackProcess` mode when you want to switch between multiple dwarves.
 
 For local DFHack mode:
 
@@ -73,8 +94,14 @@ $env:FortressSouls__DfHack__Port = "5000"
 $env:FortressSouls__Llm__ProviderType = "Fake"
 ```
 
+This optional mode assumes the validated repo scripts under
+`dfhack/scripts/fortress-souls/` have already been manually copied into the
+DFHack runtime scripts path. Use the manual preparation flow in
+`docs/runbooks/dfhack-b019-manual-validation.md`; `scripts/import-dfhack-scripts.ps1`
+is a maintainer sync-back helper, not the setup step.
+
 For local telemetry to Aspire Dashboard when starting the API outside the
-canonical launch profile:
+canonical launch profiles:
 
 ```powershell
 $env:OTEL_EXPORTER_OTLP_ENDPOINT = "http://localhost:4317"
@@ -150,8 +177,11 @@ On POSIX shells, use:
 ./scripts/check.sh
 ```
 
-`dev` starts the current backend and frontend shells together. The frontend dev
-server proxies `/api` to the backend on `http://127.0.0.1:5230`.
+Run `npm install` once in `src/frontend` before the first `dev`, `format`,
+`test`, or `check` command in a fresh workspace.
+
+`dev` starts the backend and frontend together. The frontend dev server proxies
+`/api` to the backend on `http://127.0.0.1:5230`.
 
 Focused fake-mode browser smoke test:
 
@@ -161,7 +191,8 @@ npm run test:e2e:install
 npm run test:e2e
 ```
 
-The smoke harness starts backend/frontend in fake mode on controlled ports with readiness polling:
+The smoke harness starts backend and frontend in fake mode on controlled ports
+with readiness polling:
 
 - backend `http://127.0.0.1:5230`
 - frontend `http://127.0.0.1:5173`
@@ -174,26 +205,23 @@ From the repository root:
 dotnet run --launch-profile http --project .\src\backend\FortressSouls.Api\FortressSouls.Api.csproj
 ```
 
-Expected health endpoint:
+The `http` launch profile serves the API on `http://localhost:5230`.
+
+Useful local checks:
 
 ```text
 GET http://localhost:5230/api/health
+GET http://localhost:5230/api/provider/status
+GET http://localhost:5230/api/dwarves/adapter-status
 ```
 
-Expected response shape:
+Prompt preview remains development-only:
 
-```json
-{
-  "status": "ok",
-  "version": "0.1.0",
-  "adapter": "Fake",
-  "provider": "Fake",
-  "observability": "OtlpConfigured"
-}
+```text
+GET http://localhost:5230/api/chat/sessions/{sessionId}/prompt-preview
 ```
 
-If you start the API without the `http` or `https` launch profile and do not set
-OTLP environment variables, `observability` falls back to `ConsoleFallback`.
+Responses should include `X-Correlation-ID`. Use that ID for safe diagnostics.
 
 ## Start frontend directly
 
@@ -205,11 +233,14 @@ npm install
 npm run dev -- --host 127.0.0.1 --strictPort
 ```
 
-The frontend should show:
+The frontend is no longer a placeholder shell. It renders:
 
-- backend health status,
-- placeholder or real dwarf list depending on implementation phase,
-- diagnostics panel.
+- runtime status for the backend, adapter, and provider,
+- dwarf list loading, empty, degraded, success, and error states,
+- selected dwarf snapshot loading, empty, success, error, and degraded states for stale or invalid selection and snapshot identity mismatch,
+- chat loading, empty, success, and error states.
+
+Relevant error states surface `X-Correlation-ID` when the backend provides one.
 
 ## Dashboard
 
@@ -236,16 +267,16 @@ After calling `/api/health`, verify:
 - structured logs include `correlationId`,
 - service name appears as `FortressSouls.Api` or equivalent,
 - no secrets appear in logs,
-- no full prompt appears in logs.
+- no full prompts or model responses appear in logs.
 
-After dwarf endpoints exist, verify spans:
+After calling the dwarf endpoints, verify spans:
 
 ```text
 fortresssouls.dwarves.list
 fortresssouls.dwarves.snapshot
 ```
 
-After chat exists, verify spans:
+After a chat turn, verify spans:
 
 ```text
 fortresssouls.chat.turn
@@ -254,6 +285,16 @@ fortresssouls.llm.chat
 ```
 
 ## Troubleshooting
+
+### Fresh workspace frontend commands fail
+
+Restore packages once before the first `dev`, `format`, `test`, or `check`
+command:
+
+```powershell
+cd .\src\frontend
+npm install
+```
 
 ### Dashboard is empty
 
@@ -278,11 +319,20 @@ these environment variables were set.
 
 This is a bug.
 
-Telemetry export must be optional in local dev. The app must run in fake mode without the dashboard.
+Telemetry export must be optional in local dev. The app must run in fake mode
+without the dashboard.
 
-### Logs contain prompt text
+### UI shows a degraded or error state
 
-This is a bug unless the developer explicitly used a prompt-preview endpoint.
+Keep the stable user-facing error category and the displayed
+`X-Correlation-ID`, then inspect safe logs or traces by that correlation ID.
+Do not paste secrets, prompt text, model responses, raw DFHack output, or
+private filesystem paths into reports.
+
+### Logs contain prompt text or model response content
+
+This is a bug unless the developer explicitly used the development-only
+prompt-preview endpoint.
 
 Default telemetry must not include full prompts or full model responses.
 

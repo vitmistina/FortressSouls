@@ -73,7 +73,8 @@ Invoke-RestMethod `
 
 ## Expected result
 
-The response should contain one assistant message with concise in-character dwarf prose.
+The response should contain one assistant message with concise in-character
+dwarf prose.
 
 The exact phrasing is not important. This test only proves:
 
@@ -88,19 +89,19 @@ The exact phrasing is not important. This test only proves:
 Read runtime status without triggering any provider network call:
 
 ```powershell
-Invoke-RestMethod -Uri "http://localhost:5000/api/provider/status"
+Invoke-RestMethod -Uri "http://localhost:5230/api/provider/status"
 ```
 
-Returned fields are allowlisted and safe:
+The response is an allowlisted safe projection of:
 
 - provider type,
 - configured model slug,
-- configured/readiness booleans,
+- configured and readiness booleans,
 - last outcome and stable error category,
 - bounded duration and timestamp metadata.
 
-The status response never includes endpoint URL, API key, Authorization headers,
-raw request/response bodies, prompts, or model output text.
+The status response never includes API keys, Authorization headers,
+prompt/response content, or raw provider request or response bodies.
 
 ## Safety rules
 
@@ -129,7 +130,9 @@ Temperature = 0.85
 TimeoutSeconds = 45
 ```
 
-For normal dwarf chat, avoid excessive output limits. A dwarf does not need 4,000 tokens to complain about hauling rocks. That way lies invoice-shaped slapstick.
+For normal dwarf chat, avoid excessive output limits. A dwarf does not need
+4,000 tokens to complain about hauling rocks. That way lies invoice-shaped
+slapstick.
 
 ## Troubleshooting
 
@@ -143,14 +146,17 @@ Likely causes:
 - OpenRouter account not funded,
 - key revoked.
 
-First checks:
+Safe presence checks:
 
 ```powershell
-echo $env:OPENROUTER_API_KEY
-echo $env:FortressSouls__Llm__ApiKey
+-not [string]::IsNullOrWhiteSpace($env:OPENROUTER_API_KEY)
+-not [string]::IsNullOrWhiteSpace($env:FortressSouls__Llm__ApiKey)
 ```
 
-Do not paste real keys into logs, issues, screenshots, or prompts.
+`False` means the variable is missing or blank. Do not print the secret values.
+
+If the UI or API returns a safe failure, keep the displayed
+`X-Correlation-ID` and inspect logs or traces by that ID.
 
 ### 404 Model not found
 
@@ -208,4 +214,5 @@ Check whether the prompt includes:
 - needs,
 - recent conversation.
 
-Generic model output is often not a provider problem. It is usually a thin prompt with a decorative beard.
+Generic model output is often not a provider problem. It is usually a thin
+prompt with a decorative beard.

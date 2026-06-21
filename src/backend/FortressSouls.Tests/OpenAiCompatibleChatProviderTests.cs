@@ -1,5 +1,6 @@
 namespace FortressSouls.Tests;
 
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net;
 using System.Text;
@@ -162,12 +163,12 @@ public sealed class OpenAiCompatibleChatProviderTests
     [Fact]
     public async Task OpenAiCompatible_SendAsync_EmitsContentSafeTelemetry()
     {
-        var observed = new List<Activity>();
+        var observed = new ConcurrentQueue<Activity>();
         using var listener = new ActivityListener
         {
             ShouldListenTo = source => source.Name == FortressSoulsTelemetry.ActivitySourceName,
             Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
-            ActivityStopped = activity => observed.Add(activity)
+            ActivityStopped = activity => observed.Enqueue(activity)
         };
         ActivitySource.AddActivityListener(listener);
 
@@ -178,7 +179,8 @@ public sealed class OpenAiCompatibleChatProviderTests
 
         await provider.SendAsync(new ChatProviderRequest("SENTINEL-PROMPT-LEAK-CHECK", 300), CancellationToken.None);
 
-        var llmActivity = Assert.Single(observed, activity => activity.DisplayName == FortressSoulsTelemetry.LlmChatActivityName);
+        var observedSnapshot = observed.ToArray();
+        var llmActivity = Assert.Single(observedSnapshot, activity => activity.DisplayName == FortressSoulsTelemetry.LlmChatActivityName);
         Assert.DoesNotContain(llmActivity.Tags, tag =>
             (tag.Value?.ToString() ?? string.Empty).Contains("SENTINEL-PROMPT-LEAK-CHECK", StringComparison.Ordinal));
         Assert.DoesNotContain(llmActivity.Tags, tag =>

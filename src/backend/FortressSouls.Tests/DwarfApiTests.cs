@@ -1,5 +1,6 @@
 namespace FortressSouls.Tests;
 
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Json;
@@ -227,12 +228,12 @@ public sealed class DwarfApiTests : IAsyncLifetime
     [Fact]
     public async Task DwarfEndpoints_EmitExpectedTelemetryWithoutDwarfNames()
     {
-        var observedActivities = new List<Activity>();
+        var observedActivities = new ConcurrentQueue<Activity>();
         using var listener = new ActivityListener
         {
             ShouldListenTo = source => source.Name == FortressSoulsTelemetry.ActivitySourceName,
             Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
-            ActivityStopped = activity => observedActivities.Add(activity),
+            ActivityStopped = activity => observedActivities.Enqueue(activity),
         };
 
         ActivitySource.AddActivityListener(listener);
@@ -244,8 +245,10 @@ public sealed class DwarfApiTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
+        var observedSnapshot = observedActivities.ToArray();
+
         var activity = Assert.Single(
-            observedActivities,
+            observedSnapshot,
             item => item.DisplayName == "fortresssouls.dwarves.snapshot"
                 && Equals(item.GetTagItem(FortressSoulsTelemetry.CorrelationIdTagName), "trace-snapshot-123"));
         Assert.Equal("Fake", activity.GetTagItem(FortressSoulsTelemetry.AdapterTypeTagName));
@@ -262,12 +265,12 @@ public sealed class DwarfApiTests : IAsyncLifetime
     [Fact]
     public async Task DwarfListEndpoint_EmitExpectedTelemetryWithoutRosterDetails()
     {
-        var observedActivities = new List<Activity>();
+        var observedActivities = new ConcurrentQueue<Activity>();
         using var listener = new ActivityListener
         {
             ShouldListenTo = source => source.Name == FortressSoulsTelemetry.ActivitySourceName,
             Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
-            ActivityStopped = activity => observedActivities.Add(activity),
+            ActivityStopped = activity => observedActivities.Enqueue(activity),
         };
 
         ActivitySource.AddActivityListener(listener);
@@ -279,8 +282,10 @@ public sealed class DwarfApiTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
+        var observedSnapshot = observedActivities.ToArray();
+
         var activity = Assert.Single(
-            observedActivities,
+            observedSnapshot,
             item => item.DisplayName == "fortresssouls.dwarves.list"
                 && Equals(item.GetTagItem(FortressSoulsTelemetry.CorrelationIdTagName), "trace-list-123"));
         Assert.Equal("Fake", activity.GetTagItem(FortressSoulsTelemetry.AdapterTypeTagName));

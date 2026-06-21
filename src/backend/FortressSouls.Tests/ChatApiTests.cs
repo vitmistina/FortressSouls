@@ -1,5 +1,6 @@
 namespace FortressSouls.Tests;
 
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Json;
@@ -224,12 +225,12 @@ public sealed class ChatApiTests
     [Fact]
     public async Task ChatTurnTelemetry_IsNestedAndContentFree()
     {
-        var observed = new List<Activity>();
+        var observed = new ConcurrentQueue<Activity>();
         using var listener = new ActivityListener
         {
             ShouldListenTo = source => source.Name == FortressSouls.Observability.FortressSoulsTelemetry.ActivitySourceName,
             Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
-            ActivityStopped = activity => observed.Add(activity)
+            ActivityStopped = activity => observed.Enqueue(activity)
         };
         ActivitySource.AddActivityListener(listener);
 
@@ -243,9 +244,11 @@ public sealed class ChatApiTests
             new SendChatMessageRequest("SENTINEL-CONTENT-DO-NOT-LEAK"));
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
-        var chatTurn = Assert.Single(observed, activity => activity.DisplayName == "fortresssouls.chat.turn");
-        var prompt = Assert.Single(observed, activity => activity.DisplayName == "fortresssouls.prompt.assemble");
-        var llm = Assert.Single(observed, activity => activity.DisplayName == "fortresssouls.llm.chat");
+        var observedSnapshot = observed.ToArray();
+
+        var chatTurn = Assert.Single(observedSnapshot, activity => activity.DisplayName == "fortresssouls.chat.turn");
+        var prompt = Assert.Single(observedSnapshot, activity => activity.DisplayName == "fortresssouls.prompt.assemble");
+        var llm = Assert.Single(observedSnapshot, activity => activity.DisplayName == "fortresssouls.llm.chat");
 
         Assert.Equal(chatTurn.SpanId, prompt.ParentSpanId);
         Assert.Equal(chatTurn.SpanId, llm.ParentSpanId);
@@ -254,7 +257,7 @@ public sealed class ChatApiTests
         Assert.Equal("Fake", llm.GetTagItem("fortresssouls.provider.type"));
         Assert.Equal("fake-dwarf", llm.GetTagItem("fortresssouls.llm.model"));
 
-        Assert.DoesNotContain(observed.SelectMany(activity => activity.Tags), tag =>
+        Assert.DoesNotContain(observedSnapshot.SelectMany(activity => activity.Tags), tag =>
             (tag.Value?.ToString() ?? string.Empty).Contains("SENTINEL-CONTENT-DO-NOT-LEAK", StringComparison.Ordinal));
     }
 

@@ -6,7 +6,7 @@ Last updated: 2026-06-20
 
 - B-001 is implemented as a reconciliation task, not as a blank-repo bootstrap.
 - Existing DFHack research, scripts, sample JSON, README files, env files, and spike outputs are preserved assets.
-- The existing root spec `v0.1.spec.md` is preserved; a scaffold copy now exists at `docs/specs/fortress-souls-v0.1.spec.md`.
+- The canonical v0.1 spec currently lives at `docs/specs/fortress-souls-v0.1.spec.md`; there is no separate root `v0.1.spec.md` in this workspace.
 - The repository already contains accepted v0.1 documentation beyond B-001, including `adr-0003`, `adr-0004`, and `adr-0005`.
 - `dfhack/samples/` remains the current home for DFHack adapter artifacts; root `samples/` is reserved for future application-facing examples.
 - No application code or dependency installation is allowed in B-001.
@@ -16,6 +16,9 @@ Last updated: 2026-06-20
 - The backend lists eligible dwarves and fetches snapshots by validated dwarf
   ID. The browser owns selection; the unit highlighted in the Dwarf Fortress UI
   is not an input.
+- Fresh workspaces require a one-time `npm install` in `src/frontend` before
+  the canonical dev, format, test, and check commands can complete
+  successfully.
 - B-018 and B-019 are complete and their retained scripts/samples inform the
   application contracts.
 - Remaining work follows dependency-driven waves rather than numeric phases.

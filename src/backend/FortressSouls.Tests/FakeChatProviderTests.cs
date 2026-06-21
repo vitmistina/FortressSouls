@@ -1,5 +1,6 @@
 namespace FortressSouls.Tests;
 
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using FortressSouls.Application;
 using FortressSouls.Llm;
@@ -45,12 +46,12 @@ public sealed class FakeChatProviderTests
     [Fact]
     public async Task SendAsync_EmitsLlmSpanWithoutPromptContent()
     {
-        var observed = new List<Activity>();
+        var observed = new ConcurrentQueue<Activity>();
         using var listener = new ActivityListener
         {
             ShouldListenTo = source => source.Name == FortressSoulsTelemetry.ActivitySourceName,
             Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
-            ActivityStopped = activity => observed.Add(activity)
+            ActivityStopped = activity => observed.Enqueue(activity)
         };
         ActivitySource.AddActivityListener(listener);
 
@@ -58,7 +59,8 @@ public sealed class FakeChatProviderTests
         var response = await provider.SendAsync(new ChatProviderRequest("SENTINEL-PROMPT-TEXT", 200), CancellationToken.None);
 
         Assert.NotNull(response);
-        var llmActivity = Assert.Single(observed, activity => activity.DisplayName == FortressSoulsTelemetry.LlmChatActivityName);
+        var observedSnapshot = observed.ToArray();
+        var llmActivity = Assert.Single(observedSnapshot, activity => activity.DisplayName == FortressSoulsTelemetry.LlmChatActivityName);
         Assert.Equal("Fake", llmActivity.GetTagItem(FortressSoulsTelemetry.ProviderTypeTagName));
         Assert.Equal("fake-dwarf", llmActivity.GetTagItem(FortressSoulsTelemetry.LlmModelTagName));
         Assert.Equal("success", llmActivity.GetTagItem(FortressSoulsTelemetry.OperationOutcomeTagName));
