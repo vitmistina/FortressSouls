@@ -1,12 +1,9 @@
 # ADR-0007: Agent Runtime and Tool Loop for v0.2
 
-Status: Proposed  
-Date: 2026-06-21  
+Status: Accepted
+Date: 2026-06-22
 Related: ADR-0002, ADR-0003, ADR-0005  
 Decision gate: `R2-001` in `docs/backlog/v0.2-backlog.md`
-
-This ADR remains proposed until the missing live OpenAI-compatible tool-call
-proof in `R2-001` is captured and reviewed.
 
 ## Context
 
@@ -30,7 +27,7 @@ allowing framework types or provider tool-call DTOs to become product
 contracts.
 
 R2-001 verified the current official Microsoft support and package state on
-2026-06-21:
+2026-06-21 and rechecked it on 2026-06-22 with no material change:
 
 - `Microsoft.Extensions.AI` official Learn pages exist for the library,
   `IChatClient`, and `UseFunctionInvocation`, and explicitly document automatic
@@ -141,7 +138,7 @@ Risks:
 - easy to mix provider DTOs with application policy,
 - duplicates supported library behavior without adding product value.
 
-## Proposed direction
+## Decision
 
 Use the smallest supported `Microsoft.Extensions.AI` path for the v0.2 tool
 loop and keep the tool-loop abstraction application-owned.
@@ -227,11 +224,16 @@ Executable repository evidence:
 
 1. One structured tool call and final response through the configured
    OpenAI-compatible protocol shape.
-   Result: proven with a deterministic stub of the exact
-   `/chat/completions` request and response exchange in
-   `OpenAiCompatibleToolLoopChatClientTests`. Live OpenRouter proof is still
-   blocked locally because no `.env` file and no loaded
-   `FortressSouls__Llm__ApiKey` were present in this environment.
+   Result: proven in three layers:
+   `OpenAiCompatibleToolLoopChatClientTests` still covers the deterministic
+   stub of the exact `/chat/completions` exchange; the retained live provider
+   evidence in
+   `docs/research/r2-001-openrouter-tool-loop-live-proof-2026-06-22.md`
+   proves the raw OpenRouter two-request function-call shape; and the same
+   artifact proves the current
+   `MicrosoftExtensionsAiDwarfAgent -> OpenAiCompatibleToolLoopChatClient`
+   path can complete one live tool call and final prose response when the
+   prompt explicitly requires the deterministic call.
 2. A deterministic fake client requiring no network.
    Result: proven in `ToolLoopProbeTests.RunAsync_ExecutesOneToolCall_AndReturnsFinalAssistantMessage`.
 3. Unknown tool rejection before application execution.
@@ -278,11 +280,14 @@ Implementation-size and behavior comparison:
 - Semantic Kernel: broader surface than the slice requires and official
   migration guidance now exists toward Agent Framework for agent capabilities.
 
-Repository blocker:
+Live prompt-sensitivity note:
 
-- R2-001 is not fully complete in this environment because the required live
-  OpenAI-compatible tool-call proof could not run safely. The exact blocker is
-  the absence of both `.env` and a loaded provider API key.
+- The retained 2026-06-22 live proof also captured one negative result:
+  with the generic probe description and a normal player question,
+  `deepseek/deepseek-v3.2` asked for clarification instead of calling the
+  tool. That is a prompt/tool-description elicitation issue, not a transport
+  incompatibility, and it strengthens the decision to keep prompt wording,
+  tool descriptions, budgets, and fallback policy application-owned.
 
 ## Consequences if Accepted
 

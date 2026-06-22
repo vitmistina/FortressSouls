@@ -107,14 +107,15 @@ The exact phrasing is not important. This test only proves:
 
 ## Manual OpenRouter tool-call smoke test for R2-001
 
-Use this to complete the remaining live proof for
-`docs/backlog/v0.2-backlog.md#r2-001` after a valid provider API key has been
-made available through the supported `FortressSouls__Llm__ApiKey` seam. If you
-store it in `.env`, load it through `scripts/dev.*` first. If you run the
-commands directly in PowerShell, set the same variable in that shell.
+Use this to reproduce the retained live proof for
+`docs/backlog/v0.2-backlog.md#r2-001`. The captured 2026-06-22 evidence is in
+`docs/research/r2-001-openrouter-tool-loop-live-proof-2026-06-22.md`.
+Run the same seam only after a valid provider API key has been made available
+through `FortressSouls__Llm__ApiKey`. If you store it in `.env`, load it
+through `scripts/dev.*` first. If you run the commands directly in PowerShell,
+set the same variable in that shell.
 
-If the key is missing, stop here. The local R2-001 work is intentionally not
-claiming full completion without this proof.
+If the key is missing, stop here.
 
 ```powershell
 $env:FortressSouls__Llm__ApiKey = ""
@@ -226,8 +227,11 @@ Expected live-proof result:
 - no raw tool arguments or tool results are copied into default application
   telemetry.
 
-Retain the redacted request and response evidence with the R2-001 handover
-before changing the backlog status.
+Retain only redacted request/response evidence. The existing 2026-06-22
+retained artifact also records an important nuance from the current
+`deepseek/deepseek-v3.2` path: the raw endpoint accepted the tool-call wire
+shape, but the repository adapter needed explicit deterministic tool-use
+instruction to elicit the live call reliably from the probe harness.
 
 ## Provider status API
 

@@ -22,15 +22,15 @@ Authoritative draft documents:
 - `backlog/v0.2-backlog.md`
 - `decisions/adr-0007-agent-runtime-and-tool-loop.md`
 
-ADR-0007 remains proposed until the missing live OpenAI-compatible tool-call
-proof for R2-001 is captured and reviewed.
+ADR-0007 is accepted. The retained live provider evidence for R2-001 is in
+`research/r2-001-openrouter-tool-loop-live-proof-2026-06-22.md`.
 
 ## Decisions
 
 - `decisions/adr-0003-dfhack-adapter.md` records the accepted v0.1 DFHack adapter invocation strategy.
 - `decisions/adr-0006-coding-model-routing-and-mini-specs.md` records the mini-spec lifecycle and model-routing policy.
 - `decisions/adr-0005-llm-provider-strategy.md` records the accepted v0.1 LLM provider strategy.
-- `decisions/adr-0007-agent-runtime-and-tool-loop.md` records the proposed v0.2 tool-loop direction, gathered evidence, and remaining live-proof blocker.
+- `decisions/adr-0007-agent-runtime-and-tool-loop.md` records the accepted v0.2 tool-loop direction and gathered evidence.
 
 ## LLM provider strategy
 
@@ -68,6 +68,7 @@ See:
 - `research/dfhack-field-map.md` records R-002A/B-019 field mapping decisions for the validated dwarf list and snapshot scripts.
 - `research/dfhack-live-state-probes.md` records the deferred R-002 live-state probe findings for health, wounds, location, inventory, roles, and relationships.
 - `research/dfhack-spatial-stock-spikes-2026-06-21.md` records R-003 live evidence for bounded spatial and exact stock queries.
+- `research/r2-001-openrouter-tool-loop-live-proof-2026-06-22.md` records the retained live provider evidence that accepted ADR-0007.
 
 ## Runbooks
 
