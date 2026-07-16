@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ChatPanel } from "../chat/ChatPanel";
 import type {
   ChatPromptPreviewResult,
@@ -78,6 +78,7 @@ export interface DwarfSelectionPanelsProps {
     signal?: AbortSignal,
   ) => Promise<SendChatMessageResult>;
   loadChatPromptPreview?: (sessionId: string, signal?: AbortSignal) => Promise<ChatPromptPreviewResult>;
+  auxiliaryContent?: ReactNode;
 }
 
 const snapshotPreviewCharacterLimit = 8000;
@@ -89,6 +90,7 @@ export function DwarfSelectionPanels({
   createChatSession,
   sendChatMessage,
   loadChatPromptPreview,
+  auxiliaryContent,
 }: DwarfSelectionPanelsProps) {
   const allowDevelopmentPreview = import.meta.env.DEV && showDevelopmentPreview;
   const [listState, setListState] = useState<DwarfListState>({ kind: "loading" });
@@ -259,30 +261,35 @@ export function DwarfSelectionPanels({
       : null;
 
   return (
-    <>
-      <DwarfListPanel
-        listState={listState}
-        selectedDwarfId={selectedDwarfId}
-        onSelectDwarf={handleSelectDwarf}
-        onRetry={handleRetryList}
-      />
-      <SelectedDwarfPanel
-        listState={listState}
-        selectedDwarf={selectedDwarf}
-        snapshotState={snapshotState}
-        showDevelopmentPreview={allowDevelopmentPreview}
-        onChooseAnotherDwarf={handleChooseAnotherDwarf}
-      />
-      <ChatPanel
-        key={selectedDwarfId ?? "chat-none-selected"}
-        selectedDwarfId={selectedDwarfId}
-        selectedDwarfName={selectedDwarf?.displayName ?? null}
-        showDevelopmentPreview={allowDevelopmentPreview}
-        createSession={createChatSession}
-        sendMessage={sendChatMessage}
-        loadPromptPreview={loadChatPromptPreview}
-      />
-    </>
+    <div className="chat-workspace">
+      <aside className="chat-workspace__sidebar">
+        <DwarfListPanel
+          listState={listState}
+          selectedDwarfId={selectedDwarfId}
+          onSelectDwarf={handleSelectDwarf}
+          onRetry={handleRetryList}
+        />
+        <SelectedDwarfPanel
+          listState={listState}
+          selectedDwarf={selectedDwarf}
+          snapshotState={snapshotState}
+          showDevelopmentPreview={allowDevelopmentPreview}
+          onChooseAnotherDwarf={handleChooseAnotherDwarf}
+        />
+        {auxiliaryContent}
+      </aside>
+      <div className="chat-workspace__chat">
+        <ChatPanel
+          key={selectedDwarfId ?? "chat-none-selected"}
+          selectedDwarfId={selectedDwarfId}
+          selectedDwarfName={selectedDwarf?.displayName ?? null}
+          showDevelopmentPreview={allowDevelopmentPreview}
+          createSession={createChatSession}
+          sendMessage={sendChatMessage}
+          loadPromptPreview={loadChatPromptPreview}
+        />
+      </div>
+    </div>
   );
 }
 

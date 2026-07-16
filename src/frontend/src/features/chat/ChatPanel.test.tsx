@@ -221,6 +221,27 @@ describe("ChatPanel", () => {
     expect(sendMessage).toHaveBeenCalledWith("chat-00000001", "Keyboard test");
   });
 
+  it("keeps Shift+Enter as a newline without sending", async () => {
+    const sendMessage = vi.fn();
+
+    render(
+      <ChatPanel
+        selectedDwarfId="4101"
+        selectedDwarfName="Iden Torrentshade"
+        showDevelopmentPreview={false}
+        createSession={async () => ({ sessionId: "chat-00000001", dwarfId: "4101" })}
+        sendMessage={sendMessage}
+      />,
+    );
+
+    const messageInput = await screen.findByLabelText("Message");
+    fireEvent.change(messageInput, { target: { value: "First line\nSecond line" } });
+    fireEvent.keyDown(messageInput, { key: "Enter", code: "Enter", shiftKey: true });
+
+    expect(messageInput).toHaveValue("First line\nSecond line");
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
   it("treats chat_identity_mismatch as an invalid session that must be reset", async () => {
     render(
       <ChatPanel

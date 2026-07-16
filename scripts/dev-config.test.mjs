@@ -28,6 +28,24 @@ test("parseJsonc strips comments without breaking URLs", () => {
   assert.equal(config.observability.otlpEndpoint, "http://localhost:4317");
 });
 
+test("resolveDevEnvironment defaults look-around to the maximum supported radius", () => {
+  const result = resolveDevEnvironment({
+    repoRoot: path.join("C:", "repo"),
+    configPath: path.join("C:", "repo", "fortress-souls.config.jsonc"),
+    config: {},
+    dotenv: {},
+  });
+
+  assert.equal(
+    result.environment.FortressSouls__Perception__LookAround__DefaultRadius,
+    "1",
+  );
+  assert.equal(
+    result.environment.FortressSouls__Perception__LookAround__MaxRadius,
+    "16",
+  );
+});
+
 test("resolveDevEnvironment derives backend proxy and dfhack working directory", () => {
   const repoRoot = path.join("C:", "repo");
   const result = resolveDevEnvironment({
@@ -48,6 +66,12 @@ test("resolveDevEnvironment derives backend proxy and dfhack working directory",
           port: 5001,
         },
       },
+      perception: {
+        lookAround: {
+          defaultRadius: 2,
+          maxRadius: 8,
+        },
+      },
       llm: {
         providerType: "OpenAiCompatible",
         endpoint: "https://openrouter.ai/api/v1",
@@ -55,6 +79,7 @@ test("resolveDevEnvironment derives backend proxy and dfhack working directory",
       },
       observability: {
         otlpEndpoint: "",
+        diagnosticsEnabled: true,
       },
     },
     dotenv: {
@@ -75,12 +100,24 @@ test("resolveDevEnvironment derives backend proxy and dfhack working directory",
   assert.equal(result.environment.OTEL_EXPORTER_OTLP_PROTOCOL, "grpc");
   assert.equal(result.environment.OTEL_SERVICE_NAME, "FortressSouls.Api");
   assert.equal(
+    result.environment.FortressSouls__Observability__DiagnosticsEnabled,
+    "true",
+  );
+  assert.equal(
     result.environment.FortressSouls__DfHack__RunPath,
     path.join(repoRoot, "tools", "dfhack", "hack", "dfhack-run.exe"),
   );
   assert.equal(
     result.environment.FortressSouls__DfHack__WorkingDirectory,
     path.join(repoRoot, "tools", "dfhack", "hack"),
+  );
+  assert.equal(
+    result.environment.FortressSouls__Perception__LookAround__DefaultRadius,
+    "2",
+  );
+  assert.equal(
+    result.environment.FortressSouls__Perception__LookAround__MaxRadius,
+    "8",
   );
   assert.equal(result.environment.FortressSouls__Llm__ApiKey, "secret-key");
   assert.equal(

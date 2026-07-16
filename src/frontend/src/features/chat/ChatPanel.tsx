@@ -80,6 +80,7 @@ export function ChatPanel({
   sendMessage: sendMessageApi = sendChatMessage,
   loadPromptPreview: loadPromptPreviewApi = fetchChatPromptPreview,
 }: ChatPanelProps) {
+  const messageInputRef = useRef<HTMLTextAreaElement | null>(null);
   const allowDevelopmentPreview = import.meta.env.DEV && showDevelopmentPreview && isDevelopmentEnvironment;
   const [sessionState, setSessionState] = useState<ChatSessionState>({ kind: "idle" });
   const [turns, setTurns] = useState<ChatTurn[]>([]);
@@ -293,13 +294,32 @@ export function ChatPanel({
       });
   };
 
+  useEffect(() => {
+    const messageInput = messageInputRef.current;
+    if (messageInput === null) {
+      return;
+    }
+
+    messageInput.style.height = "auto";
+    messageInput.style.height = `${Math.min(Math.max(messageInput.scrollHeight, 48), 200)}px`;
+  }, [draft]);
+
   return (
-    <article className="panel dwarf-panel" aria-labelledby="chat-heading" aria-busy={pendingMessage !== null}>
+    <article className="panel dwarf-panel panel--chat" aria-labelledby="chat-heading" aria-busy={pendingMessage !== null}>
       <div className="panel__header">
         <span className={`status-chip ${statusClassName(sessionState, pendingMessage !== null)}`}>
           {statusLabel(sessionState, pendingMessage !== null)}
         </span>
         <h2 id="chat-heading">Chat</h2>
+        <button
+          className="chat-reset-button"
+          type="button"
+          aria-label="Reset chat session"
+          onClick={handleResetSession}
+          disabled={!selectedDwarfId || sessionState.kind === "creating" || pendingMessage !== null}
+        >
+          Reset chat
+        </button>
       </div>
       {selectedDwarfId ? (
         <p className="panel__copy">
@@ -385,7 +405,8 @@ export function ChatPanel({
         <label htmlFor="chat-message-input">Message</label>
         <textarea
           id="chat-message-input"
-          rows={3}
+          ref={messageInputRef}
+          rows={1}
           value={draft}
           onChange={(event) => {
             setDraft(event.target.value);
@@ -401,24 +422,17 @@ export function ChatPanel({
           disabled={sessionState.kind !== "ready" || pendingMessage !== null}
           aria-describedby="chat-input-help"
         />
-        <p id="chat-input-help" className="panel__copy">
-          Press Enter to send. Shift+Enter adds a new line. {draft.length}/{chatMessageCharacterLimit}
-        </p>
         {inputError ? (
           <p className="panel__copy panel__copy--error" role="alert">
             {inputError}
           </p>
         ) : null}
         <div className="chat-input-actions">
+          <span id="chat-input-help" className="panel__copy">
+            Enter to send · Shift+Enter for a new line · {draft.length}/{chatMessageCharacterLimit}
+          </span>
           <button type="submit" disabled={sessionState.kind !== "ready" || pendingMessage !== null}>
             {pendingMessage !== null ? "Sending..." : "Send"}
-          </button>
-          <button
-            type="button"
-            onClick={handleResetSession}
-            disabled={!selectedDwarfId || sessionState.kind === "creating" || pendingMessage !== null}
-          >
-            Reset chat session
           </button>
         </div>
       </form>

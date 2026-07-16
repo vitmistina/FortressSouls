@@ -95,6 +95,8 @@ public static class FortressSoulsTelemetry
 
     public const string ErrorCategoryTagName = "fortresssouls.error.category";
 
+    public const string DiagnosticFailureCauseTagName = "fortresssouls.diagnostics.failure_cause";
+
     public const string SuccessOutcome = "success";
 
     public const string CancelledOutcome = "cancelled";

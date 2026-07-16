@@ -21,6 +21,11 @@ public static class ObservabilityServiceCollectionExtensions
             .AddSingleton(FortressSoulsTelemetry.ActivitySource)
             .AddSingleton(FortressSoulsTelemetry.Meter);
 
+        var diagnosticsOptions = configuration
+            .GetSection(ObservabilityDiagnosticsOptions.ConfigurationSectionPath)
+            .Get<ObservabilityDiagnosticsOptions>() ?? new ObservabilityDiagnosticsOptions();
+        services.AddSingleton(diagnosticsOptions);
+
         var useOtlpExporter = ObservabilityConfiguration.TryGetOtlpEndpoint(configuration, out var otlpEndpoint);
 
         services.AddOpenTelemetry()

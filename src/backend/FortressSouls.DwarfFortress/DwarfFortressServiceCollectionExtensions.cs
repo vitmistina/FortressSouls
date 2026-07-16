@@ -18,22 +18,36 @@ public static class DwarfFortressServiceCollectionExtensions
         var adapterOptions = configuration
             .GetSection(DwarfFortressAdapterOptions.ConfigurationSectionPath)
             .Get<DwarfFortressAdapterOptions>() ?? new DwarfFortressAdapterOptions();
+        var lookAroundOptions = configuration
+            .GetSection(LookAroundOptions.ConfigurationSectionPath)
+            .Get<LookAroundOptions>() ?? LookAroundOptions.CreateDefault();
+
+        lookAroundOptions.Validate();
+        services.AddSingleton(lookAroundOptions);
 
         var adapterType = adapterOptions.ResolveAdapterType(dfHackOptions.Enabled);
 
         return adapterType switch
         {
-            DwarfFortressAdapterType.Fake => AddFakeAdapter(services),
+            DwarfFortressAdapterType.Fake => AddFakeAdapter(services, lookAroundOptions),
             DwarfFortressAdapterType.JsonFile => AddJsonFileAdapter(services, adapterOptions.JsonFile.Validate()),
             DwarfFortressAdapterType.DfHackProcess => AddDfHackProcessAdapter(services, EnableAndValidateDfHackOptions(dfHackOptions)),
             _ => throw new ArgumentOutOfRangeException(nameof(adapterType), adapterType, "Unsupported dwarf adapter type.")
         };
     }
 
-    private static IServiceCollection AddFakeAdapter(IServiceCollection services)
+    private static IServiceCollection AddFakeAdapter(IServiceCollection services, LookAroundOptions lookAroundOptions)
     {
+        var fixture = FakePerceptionFixtureSet.Default.LookAround;
+        if (lookAroundOptions.MaxRadius > fixture.Radius)
+        {
+            throw new ArgumentException(
+                $"Fake surroundings only support radius values through {fixture.Radius}; lower FortressSouls:Perception:LookAround:MaxRadius or use a live adapter.",
+                nameof(lookAroundOptions));
+        }
+
         services.AddSingleton<IDwarfFortressAdapter, FakeDwarfFortressAdapter>();
-        services.AddSingleton<ISurroundingsInspectionService>(_ => new FixtureSurroundingsInspectionService(FakePerceptionFixtureSet.Default.LookAround));
+        services.AddSingleton<ISurroundingsInspectionService>(_ => new FixtureSurroundingsInspectionService(fixture));
         services.AddSingleton<IStockInspectionService>(_ => new FixtureStockInspectionService(FakePerceptionFixtureSet.Default.Stocks));
         services.AddSingleton(new DwarfAdapterDescriptor(DwarfFortressAdapterType.Fake.ToString()));
         services.AddSingleton<IDwarfAdapterStatusReader>(new StaticDwarfAdapterStatusReader(DwarfFortressAdapterType.Fake.ToString()));

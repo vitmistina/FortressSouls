@@ -117,6 +117,9 @@ public sealed class ProviderConfigurationTests
         services.RemoveAll<ChatProviderStatusTracker>();
         services.RemoveAll<IChatProviderStatusReader>();
         services.RemoveAll<IChatProviderStatusRecorder>();
+        services.RemoveAll<IDwarfAgent>();
+        services.RemoveAll<IAgentToolRegistry>();
+        services.RemoveAll<Microsoft.Extensions.AI.IChatClient>();
 
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(configValues).Build();
         services.AddFortressSoulsLlm(configuration);

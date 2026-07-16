@@ -59,26 +59,17 @@ a {
 }
 
 .app-shell {
-  width: min(1180px, calc(100% - 2rem));
+  width: min(1360px, calc(100% - 2rem));
   margin: 0 auto;
-  padding: 1.5rem 0 2.5rem;
+  padding: 0 0 2.5rem;
 }
 
-.hero,
+.top-bar,
 .panel {
   border: 1px solid var(--panel-border);
   background: linear-gradient(180deg, rgba(19, 26, 42, 0.92), rgba(10, 14, 24, 0.88));
   box-shadow: var(--shadow);
   backdrop-filter: blur(14px);
-}
-
-.hero {
-  border-radius: 28px;
-  padding: clamp(1.4rem, 3vw, 2.2rem);
-  display: grid;
-  gap: 0.8rem;
-  margin-bottom: 1rem;
-  animation: riseIn 420ms ease-out both;
 }
 
 .hero__eyebrow,
@@ -96,24 +87,32 @@ a {
   background: rgba(220, 184, 106, 0.12);
 }
 
-.hero h1 {
-  margin: 0;
-  font-size: clamp(2.4rem, 6vw, 4.8rem);
-  line-height: 0.95;
-  letter-spacing: -0.05em;
-  max-width: 12ch;
+.top-bar {
+  min-height: 3.75rem;
+  padding: 0.75rem 1rem;
+  border-radius: 0 0 16px 16px;
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
 }
 
-.hero p {
+.top-bar h1 {
   margin: 0;
-  max-width: 64ch;
+  font-size: 1.05rem;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.top-bar p {
+  margin: 0;
   color: var(--text-muted);
-  font-size: 1.02rem;
+  font-size: 0.9rem;
 }
 
 .content-grid {
   display: grid;
   gap: 1rem;
+  padding-top: 0.75rem;
 }
 
 .panel {
@@ -207,10 +206,40 @@ a {
   word-break: break-word;
 }
 
-.workflow-grid {
+.chat-workspace {
   display: grid;
+  grid-template-columns: minmax(14rem, 17rem) minmax(0, 1fr);
   gap: 1rem;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  align-items: stretch;
+}
+
+.chat-workspace__sidebar,
+.chat-workspace__chat {
+  min-width: 0;
+}
+
+.chat-workspace__sidebar {
+  display: grid;
+  align-content: start;
+  gap: 1rem;
+}
+
+.panel--chat {
+  min-height: 32rem;
+}
+
+.panel--chat .chat-turn-list {
+  overflow: visible;
+}
+
+.auxiliary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.auxiliary-grid--sidebar {
+  grid-template-columns: 1fr;
 }
 
 .placeholder-card {
@@ -425,6 +454,7 @@ a {
 .chat-input-form {
   display: grid;
   gap: 0.5rem;
+  padding-top: 0.75rem;
 }
 
 .chat-input-form textarea {
@@ -434,13 +464,36 @@ a {
   background: rgba(0, 0, 0, 0.24);
   color: inherit;
   padding: 0.65rem;
-  resize: vertical;
+  min-height: 3rem;
+  max-height: 12.5rem;
+  resize: none;
+  overflow-y: auto;
 }
 
 .chat-input-actions {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
   gap: 0.5rem;
+}
+
+.chat-input-actions .panel__copy {
+  flex: 1;
+  font-size: 0.82rem;
+}
+
+.chat-reset-button {
+  margin-left: auto;
+  border: 0;
+  padding: 0.25rem;
+  color: var(--text-muted);
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.82rem;
+}
+
+.chat-reset-button[disabled] {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .chat-input-actions button,
@@ -502,4 +555,18 @@ a {
     align-items: flex-start;
     flex-direction: column;
   }
+
+  .chat-workspace,
+  .auxiliary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .panel--chat {
+    min-height: 0;
+  }
+
+  .chat-input-actions {
+    flex-wrap: wrap;
+  }
+
 }

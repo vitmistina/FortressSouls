@@ -15,27 +15,29 @@ public sealed class ChatSessionService(
     ChatSessionOptions options,
     IEnumerable<IDwarfAgent> dwarfAgents)
 {
+    private static readonly TimeSpan PerceptionTurnTimeout = TimeSpan.FromSeconds(180);
+    private static readonly TimeSpan PerceptionToolTimeout = TimeSpan.FromSeconds(30);
     private static readonly AgentExecutionPolicy LookAroundExecutionPolicy = new(
         MaximumRounds: 2,
         MaximumToolCalls: 1,
-        MaximumToolResultBytes: 2_048,
-        MaximumTotalToolResultBytes: 2_048,
-        TurnTimeout: TimeSpan.FromSeconds(5),
-        ToolTimeout: TimeSpan.FromSeconds(1));
+        MaximumToolResultBytes: 256 * 1024,
+        MaximumTotalToolResultBytes: 256 * 1024,
+        TurnTimeout: PerceptionTurnTimeout,
+        ToolTimeout: PerceptionToolTimeout);
     private static readonly AgentExecutionPolicy StockInspectionExecutionPolicy = new(
         MaximumRounds: 2,
         MaximumToolCalls: 1,
         MaximumToolResultBytes: 1_024,
         MaximumTotalToolResultBytes: 1_024,
-        TurnTimeout: TimeSpan.FromSeconds(5),
-        ToolTimeout: TimeSpan.FromSeconds(1));
+        TurnTimeout: PerceptionTurnTimeout,
+        ToolTimeout: PerceptionToolTimeout);
     private static readonly AgentExecutionPolicy DwarfInspectionExecutionPolicy = new(
         MaximumRounds: 3,
         MaximumToolCalls: 2,
         MaximumToolResultBytes: 2_048,
         MaximumTotalToolResultBytes: 4_096,
-        TurnTimeout: TimeSpan.FromSeconds(5),
-        ToolTimeout: TimeSpan.FromSeconds(1));
+        TurnTimeout: PerceptionTurnTimeout,
+        ToolTimeout: PerceptionToolTimeout);
     private static readonly PromptToolDefinition[] LookAroundPromptTools =
     [
         new(

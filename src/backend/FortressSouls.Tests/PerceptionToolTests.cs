@@ -1,10 +1,12 @@
 namespace FortressSouls.Tests;
 
+using System.Diagnostics;
 using System.Text.Json;
 using FortressSouls.Application;
 using FortressSouls.Domain;
 using FortressSouls.DwarfFortress;
 using FortressSouls.Llm;
+using FortressSouls.Observability;
 using Microsoft.Extensions.AI;
 using AiChatRole = Microsoft.Extensions.AI.ChatRole;
 
@@ -59,6 +61,38 @@ public sealed class PerceptionToolTests
         var cells = result.Content.GetProperty("cells").EnumerateArray().ToArray();
         Assert.Equal(25, cells.Length);
         Assert.True(cells.Count(cell => string.Equals(cell.GetProperty("visibility").GetString(), "hidden", StringComparison.Ordinal)) >= 2);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_LookAround_UsesConfiguredMaximumRadius()
+    {
+        var registry = CreateRegistry(
+            lookAroundOptions: new LookAroundOptions
+            {
+                DefaultRadius = 1,
+                MaxRadius = 1
+            });
+
+        var exception = await Assert.ThrowsAsync<AgentTurnException>(() =>
+            registry.ExecuteAsync(
+                CreateInvocation(registry, FakePerceptionToolService.LookAroundToolName, new { radius = 2 }),
+                CancellationToken.None));
+
+        Assert.Equal(AgentTurnErrorCode.InvalidArguments, exception.ErrorCode);
+    }
+
+    [Fact]
+    public void CreateRegistrations_LookAround_DescribesConfiguredRadiusRange()
+    {
+        var registry = CreateRegistry(
+            lookAroundOptions: new LookAroundOptions
+            {
+                DefaultRadius = 2,
+                MaxRadius = 8
+            });
+
+        Assert.True(registry.TryGetDefinition(FakePerceptionToolService.LookAroundToolName, out var definition));
+        Assert.Contains("from 2 through 8", definition!.Description, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -296,11 +330,17 @@ public sealed class PerceptionToolTests
 
     private static ClosedAgentToolRegistry CreateRegistry(
         CountingDwarfFortressAdapter? adapter = null,
-        FakePerceptionFixtureSet? fixtures = null)
+        FakePerceptionFixtureSet? fixtures = null,
+        LookAroundOptions? lookAroundOptions = null)
     {
         var dwarfAdapter = adapter ?? new CountingDwarfFortressAdapter();
         var queryService = new DwarfQueryService(dwarfAdapter, new DwarfAdapterDescriptor("Fake"));
-        var service = new FakePerceptionToolService(queryService, fixtures ?? FakePerceptionFixtureSet.Default);
+        var service = new FakePerceptionToolService(
+            queryService,
+            new FixtureSurroundingsInspectionService((fixtures ?? FakePerceptionFixtureSet.Default).LookAround),
+            new FixtureStockInspectionService((fixtures ?? FakePerceptionFixtureSet.Default).Stocks),
+            fixtures ?? FakePerceptionFixtureSet.Default,
+            lookAroundOptions);
 
         return new ClosedAgentToolRegistry(service.CreateRegistrations());
     }
@@ -535,6 +575,45 @@ public sealed class PerceptionToolLoopTests
         Assert.Equal(3, fakeClient.RequestCount);
     }
 
+    [Fact]
+    public async Task RunTurnAsync_WithDiagnosticsEnabled_EmitsStableDwarfFortressFailureCauseWithoutPayload()
+    {
+        var registry = new ClosedAgentToolRegistry(
+        [
+            new AgentToolRegistration(
+                new AgentToolDefinition(FakePerceptionToolService.LookAroundToolName, "Safe tool."),
+                (_, _) => throw new AgentTurnException(
+                    AgentTurnErrorCode.InvalidData,
+                    "The agent turn received invalid data.",
+                    new DwarfFortressDataException(DwarfFortressDataErrorCode.InvalidData, "Unsafe details.")),
+                _ => { })
+        ]);
+        var completedActivities = new List<Activity>();
+        using var listener = new ActivityListener
+        {
+            ShouldListenTo = source => source.Name == FortressSoulsTelemetry.ActivitySourceName,
+            Sample = static (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
+            ActivityStopped = activity => completedActivities.Add(activity)
+        };
+        ActivitySource.AddActivityListener(listener);
+
+        var exception = await Assert.ThrowsAsync<AgentTurnException>(() =>
+            CreateAgent(
+                new SequenceChatClient(
+                    new ChatResponse(new ChatMessage(
+                        AiChatRole.Assistant,
+                        [new FunctionCallContent("call-1", FakePerceptionToolService.LookAroundToolName, new Dictionary<string, object?>())]))),
+                registry,
+                new ObservabilityDiagnosticsOptions { DiagnosticsEnabled = true })
+            .RunTurnAsync(CreateRequest(), CancellationToken.None));
+
+        Assert.Equal(AgentTurnErrorCode.InvalidData, exception.ErrorCode);
+        var toolActivity = Assert.Single(completedActivities, activity => activity.DisplayName == FortressSoulsTelemetry.AgentToolCallActivityName);
+        var tags = toolActivity.Tags.ToDictionary(tag => tag.Key, tag => tag.Value, StringComparer.Ordinal);
+        Assert.Equal("dfhack_invalid_data", tags[FortressSoulsTelemetry.DiagnosticFailureCauseTagName]);
+        Assert.DoesNotContain("Unsafe details.", tags.Values, StringComparer.Ordinal);
+    }
+
     private static ClosedAgentToolRegistry CreateRegistry(IDwarfFortressAdapter? adapter = null) =>
         new(new FakePerceptionToolService(
             new DwarfQueryService(adapter ?? new FakeDwarfFortressAdapter(), new DwarfAdapterDescriptor("Fake")),
@@ -550,7 +629,10 @@ public sealed class PerceptionToolLoopTests
             JsonSerializer.SerializeToElement(arguments));
     }
 
-    private static MicrosoftExtensionsAiDwarfAgent CreateAgent(IChatClient chatClient, ClosedAgentToolRegistry registry) =>
+    private static MicrosoftExtensionsAiDwarfAgent CreateAgent(
+        IChatClient chatClient,
+        ClosedAgentToolRegistry registry,
+        ObservabilityDiagnosticsOptions? diagnosticsOptions = null) =>
         new(chatClient, registry, new LlmProviderOptions
         {
             ProviderType = LlmProviderType.OpenAiCompatible,
@@ -560,7 +642,7 @@ public sealed class PerceptionToolLoopTests
             MaxOutputTokens = 500,
             Temperature = 0.85,
             TimeoutSeconds = 5
-        });
+        }, diagnosticsOptions);
 
     private static AgentTurnRequest CreateRequest(
         string userMessage = "What do you see?",

@@ -11,12 +11,14 @@
 
   // Empty string disables OTLP export and keeps console fallback only.
   "observability": {
-    "otlpEndpoint": "http://localhost:4317"
+    "otlpEndpoint": "http://localhost:4317",
+    // Adds safe, stable failure-cause tags to OTEL. It never records prompts, replies, tool payloads, or raw DFHack output.
+    "diagnosticsEnabled": true
   },
 
   "dwarfFortress": {
     // Supported adapter types: Fake | JsonFile | DfHackProcess
-    "adapterType": "Fake",
+    "adapterType": "DfHackProcess",
 
     // Used when adapterType is JsonFile.
     "jsonFile": {

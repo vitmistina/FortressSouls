@@ -32,6 +32,11 @@ Model arguments:
 radius: integer, optional, application-bounded
 ```
 
+The local default is `1`, and the live-development default maximum is `16`. Local configuration
+may lower or raise the maximum through
+`perception.lookAround.maxRadius`, up to the fixed safety ceiling of `16`.
+Fake mode remains limited to the retained radius-2 fixture.
+
 The observer dwarf ID, center position, z-level, and command name are derived
 by the application. v0.2 does not permit arbitrary coordinates, arbitrary unit
 IDs, or z-offset selection from the model.

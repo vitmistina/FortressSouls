@@ -157,6 +157,28 @@ public sealed class ChatApiTests
     }
 
     [Fact]
+    public async Task LookAroundRequest_UsesExpandedObservationBudget()
+    {
+        var agent = new CapturingPolicyAgent();
+        using var factory = CreateFactory("Development", agent: agent);
+        using var client = factory.CreateClient();
+
+        var created = await (await client.PostAsJsonAsync("/api/chat/sessions", new CreateChatSessionRequest("4101")))
+            .Content.ReadFromJsonAsync<CreateChatSessionResponse>();
+
+        var response = await client.PostAsJsonAsync(
+            $"/api/chat/sessions/{created!.SessionId}/messages",
+            new SendChatMessageRequest("Look around and tell me what you see."));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.NotNull(agent.ExecutionPolicy);
+        Assert.Equal(256 * 1024, agent.ExecutionPolicy!.MaximumToolResultBytes);
+        Assert.Equal(256 * 1024, agent.ExecutionPolicy.MaximumTotalToolResultBytes);
+        Assert.Equal(TimeSpan.FromSeconds(180), agent.ExecutionPolicy.TurnTimeout);
+        Assert.Equal(TimeSpan.FromSeconds(30), agent.ExecutionPolicy.ToolTimeout);
+    }
+
+    [Fact]
     public async Task StockQuestion_UsesInspectStocksToolAndReturnsExactSafeReceipt()
     {
         using var factory = CreateFactory("Development");
@@ -187,7 +209,7 @@ public sealed class ChatApiTests
 
         Assert.NotNull(preview);
         Assert.Contains("ENABLED_TOOLS: inspect_stocks", preview!.PromptText, StringComparison.Ordinal);
-        Assert.DoesNotContain("look_around", preview.PromptText, StringComparison.Ordinal);
+        Assert.DoesNotContain($"\"tool\":\"{FakePerceptionToolService.LookAroundToolName}\"", preview.PromptText, StringComparison.Ordinal);
         Assert.DoesNotContain($"\"tool\":\"{FakePerceptionToolService.ListDwarvesToolName}\"", preview.PromptText, StringComparison.Ordinal);
         Assert.DoesNotContain($"\"tool\":\"{FakePerceptionToolService.InspectDwarfToolName}\"", preview.PromptText, StringComparison.Ordinal);
         Assert.DoesNotContain("\"categories\"", preview.PromptText, StringComparison.Ordinal);
@@ -266,7 +288,7 @@ public sealed class ChatApiTests
 
         Assert.NotNull(preview);
         Assert.Contains("ENABLED_TOOLS: inspect_dwarf, list_dwarves", preview!.PromptText, StringComparison.Ordinal);
-        Assert.DoesNotContain("look_around", preview.PromptText, StringComparison.Ordinal);
+        Assert.DoesNotContain($"\"tool\":\"{FakePerceptionToolService.LookAroundToolName}\"", preview.PromptText, StringComparison.Ordinal);
         Assert.DoesNotContain("call-1", preview.PromptText, StringComparison.Ordinal);
         Assert.DoesNotContain("\"dwarves\"", preview.PromptText, StringComparison.Ordinal);
         Assert.DoesNotContain("\"dwarfId\":\"4102\"", preview.PromptText, StringComparison.Ordinal);
@@ -888,6 +910,17 @@ public sealed class ChatApiTests
     {
         public Task<AgentTurnResult> RunTurnAsync(AgentTurnRequest request, CancellationToken cancellationToken) =>
             throw new AgentTurnException(AgentTurnErrorCode.InvalidData, "Simulated malformed tool payload.");
+    }
+
+    private sealed class CapturingPolicyAgent : IDwarfAgent
+    {
+        public AgentExecutionPolicy? ExecutionPolicy { get; private set; }
+
+        public Task<AgentTurnResult> RunTurnAsync(AgentTurnRequest request, CancellationToken cancellationToken)
+        {
+            ExecutionPolicy = request.ExecutionPolicy;
+            return Task.FromResult(new AgentTurnResult("I can see the nearby workings.", "Fake", "test", []));
+        }
     }
 
     private sealed class StubStockInspectionService(InspectStocksToolResult result) : IStockInspectionService

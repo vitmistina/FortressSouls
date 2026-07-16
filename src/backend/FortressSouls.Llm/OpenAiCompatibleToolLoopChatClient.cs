@@ -1,17 +1,21 @@
 namespace FortressSouls.Llm;
 
+using System.Diagnostics;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
+using FortressSouls.Observability;
 using Microsoft.Extensions.AI;
 
 public sealed class OpenAiCompatibleToolLoopChatClient(
     HttpClient httpClient,
-    LlmProviderOptions options) : IChatClient
+    LlmProviderOptions options,
+    IChatProviderStatusRecorder? statusRecorder = null) : IChatClient
 {
+    private const string ProviderType = "OpenAiCompatible";
     private const int MaxResponseBytes = 64 * 1024;
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web)
     {
@@ -21,11 +25,67 @@ public sealed class OpenAiCompatibleToolLoopChatClient(
 
     private readonly HttpClient _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
     private readonly LlmProviderOptions _options = options?.Validate() ?? throw new ArgumentNullException(nameof(options));
+    private readonly IChatProviderStatusRecorder? _statusRecorder = statusRecorder;
 
     public async Task<ChatResponse> GetResponseAsync(
         IEnumerable<ChatMessage> messages,
         ChatOptions? options = null,
         CancellationToken cancellationToken = default)
+    {
+        using var activity = FortressSoulsTelemetry.ActivitySource.StartActivity(
+            FortressSoulsTelemetry.LlmChatActivityName,
+            ActivityKind.Internal);
+        activity?.SetTag(FortressSoulsTelemetry.ProviderTypeTagName, ProviderType);
+        activity?.SetTag(FortressSoulsTelemetry.LlmModelTagName, _options.Model);
+
+        var startedAt = Stopwatch.GetTimestamp();
+        try
+        {
+            var response = await GetResponseCoreAsync(messages, options, cancellationToken);
+            var duration = Stopwatch.GetElapsedTime(startedAt);
+            _statusRecorder?.RecordSuccess(duration);
+            RecordRequestTelemetry(activity, duration, FortressSoulsTelemetry.SuccessOutcome);
+            return response;
+        }
+        catch (OperationCanceledException)
+        {
+            _statusRecorder?.RecordCancellation();
+            RecordRequestTelemetry(activity, TimeSpan.Zero, FortressSoulsTelemetry.CancelledOutcome);
+            throw;
+        }
+        catch (HttpRequestException exception)
+        {
+            var duration = Stopwatch.GetElapsedTime(startedAt);
+            const string errorCategory = "transport_error";
+            _statusRecorder?.RecordFailure(errorCategory, duration);
+            RecordRequestTelemetry(activity, duration, FortressSoulsTelemetry.ErrorOutcome, errorCategory);
+            throw new LlmProviderException(
+                LlmProviderErrorCode.Unavailable,
+                "The chat provider transport request failed.",
+                exception);
+        }
+        catch (LlmProviderException exception)
+        {
+            var duration = Stopwatch.GetElapsedTime(startedAt);
+            var errorCategory = MapStatusError(exception.ErrorCode);
+            if (exception.ErrorCode == LlmProviderErrorCode.Timeout)
+            {
+                _statusRecorder?.RecordTimeout(duration);
+            }
+            else
+            {
+                _statusRecorder?.RecordFailure(errorCategory, duration);
+            }
+
+            RecordRequestTelemetry(activity, duration, FortressSoulsTelemetry.ErrorOutcome, errorCategory);
+            throw;
+        }
+    }
+
+    private async Task<ChatResponse> GetResponseCoreAsync(
+        IEnumerable<ChatMessage> messages,
+        ChatOptions? options,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(messages);
 
@@ -56,11 +116,6 @@ public sealed class OpenAiCompatibleToolLoopChatClient(
         {
             throw new LlmProviderException(LlmProviderErrorCode.Timeout, "The chat provider request timed out.");
         }
-        catch (HttpRequestException exception)
-        {
-            throw new LlmProviderException(LlmProviderErrorCode.Unavailable, "The chat provider transport request failed.", exception);
-        }
-
         using (response)
         {
             if (!response.IsSuccessStatusCode)
@@ -91,6 +146,34 @@ public sealed class OpenAiCompatibleToolLoopChatClient(
             return new ChatResponse(MapAssistantMessage(parsed));
         }
     }
+
+    private void RecordRequestTelemetry(
+        Activity? activity,
+        TimeSpan duration,
+        string outcome,
+        string? errorCategory = null)
+    {
+        activity?.SetTag(FortressSoulsTelemetry.OperationOutcomeTagName, outcome);
+        FortressSoulsTelemetry.RecordLlmRequestCount(ProviderType, _options.Model, outcome);
+        FortressSoulsTelemetry.RecordLlmRequestDuration(duration.TotalMilliseconds, ProviderType, _options.Model, outcome);
+        if (errorCategory is not null)
+        {
+            FortressSoulsTelemetry.RecordLlmErrorCount(ProviderType, _options.Model, errorCategory);
+        }
+    }
+
+    private string MapStatusError(LlmProviderErrorCode errorCode) =>
+        errorCode switch
+        {
+            LlmProviderErrorCode.InvalidConfiguration when string.IsNullOrWhiteSpace(_options.ApiKey) => "missing_api_key",
+            LlmProviderErrorCode.InvalidConfiguration => "invalid_configuration",
+            LlmProviderErrorCode.Unavailable => "non_success_status",
+            LlmProviderErrorCode.ResponseTooLarge => "response_too_large",
+            LlmProviderErrorCode.InvalidResponse => "invalid_response",
+            LlmProviderErrorCode.Timeout => "timeout",
+            LlmProviderErrorCode.InvalidRequest => "invalid_request",
+            _ => "provider_error"
+        };
 
     public object? GetService(Type serviceType, object? serviceKey = null)
     {

@@ -81,7 +81,7 @@ describe("App", () => {
       />,
     );
 
-    expect(screen.getByRole("heading", { name: "Read-only dwarf companion" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Fortress Souls" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Backend health" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Runtime status" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Dwarf list" })).toBeInTheDocument();

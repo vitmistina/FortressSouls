@@ -11,7 +11,9 @@
 
   // Empty string disables OTLP export and keeps console fallback only.
   "observability": {
-    "otlpEndpoint": "http://localhost:4317"
+    "otlpEndpoint": "http://localhost:4317",
+    // Adds safe, stable failure-cause tags to OTEL. It never records prompts, replies, tool payloads, or raw DFHack output.
+    "diagnosticsEnabled": false
   },
 
   "dwarfFortress": {
@@ -35,6 +37,13 @@
       // v0.1 stays loopback-only.
       "host": "127.0.0.1",
       "port": 5000
+    }
+  },
+
+  "perception": {
+    "lookAround": {
+      "defaultRadius": 1,
+      "maxRadius": 2
     }
   },
 

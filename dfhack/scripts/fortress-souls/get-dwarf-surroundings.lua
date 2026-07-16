@@ -2,7 +2,8 @@ local json = require('json')
 
 local SCHEMA_VERSION = 'fortress-souls-dwarf-surroundings.v0.2'
 local DEFAULT_RADIUS = 1
-local MAX_RADIUS = 2
+-- Keep the process output bounded even if the application is misconfigured.
+local MAX_RADIUS = 16
 local MAX_UNITS_SCANNED = 10000
 
 local function safe(fn)

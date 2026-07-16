@@ -20,6 +20,7 @@ const defaultConfig = {
   },
   observability: {
     otlpEndpoint: "http://localhost:4317",
+    diagnosticsEnabled: false,
   },
   dwarfFortress: {
     adapterType: "Fake",
@@ -33,6 +34,12 @@ const defaultConfig = {
       workingDirectory: "",
       host: "127.0.0.1",
       port: 5000,
+    },
+  },
+  perception: {
+    lookAround: {
+      defaultRadius: 1,
+      maxRadius: 16,
     },
   },
   llm: {
@@ -261,6 +268,12 @@ export function resolveDevEnvironment({
     FortressSouls__DfHack__Port: toStringValue(
       merged.dwarfFortress.dfHack.port,
     ),
+    FortressSouls__Perception__LookAround__DefaultRadius: toStringValue(
+      merged.perception.lookAround.defaultRadius,
+    ),
+    FortressSouls__Perception__LookAround__MaxRadius: toStringValue(
+      merged.perception.lookAround.maxRadius,
+    ),
     FortressSouls__Llm__ProviderType: toStringValue(merged.llm.providerType),
     FortressSouls__Llm__Endpoint: toStringValue(merged.llm.endpoint),
     FortressSouls__Llm__Model: toStringValue(merged.llm.model),
@@ -273,6 +286,9 @@ export function resolveDevEnvironment({
     ),
     OTEL_EXPORTER_OTLP_ENDPOINT: toStringValue(
       merged.observability.otlpEndpoint,
+    ),
+    FortressSouls__Observability__DiagnosticsEnabled: toStringValue(
+      merged.observability.diagnosticsEnabled,
     ),
     OTEL_EXPORTER_OTLP_PROTOCOL: "grpc",
     OTEL_SERVICE_NAME: "FortressSouls.Api",

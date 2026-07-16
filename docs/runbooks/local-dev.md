@@ -84,7 +84,17 @@ Use the root config for:
 - adapter type,
 - JSON-file sample paths,
 - DFHack `runPath`, optional `workingDirectory`, host, and port,
-- local OTLP endpoint.
+- look-around default and maximum radius under `perception.lookAround`,
+- local OTLP endpoint and the optional content-free OTEL diagnostics mode.
+
+The live development default permits `perception.lookAround.maxRadius = 16`.
+`look_around` has a bounded 256 KiB observation budget for its one-call turn;
+the compact result representation remains a follow-up improvement, not a
+reason to silently discard observations.
+
+Perception turns have a 180-second whole-turn deadline and a 30-second deadline
+per tool call. These limits cover provider round trips plus live DFHack work
+without permitting unbounded or background execution.
 
 If the default local ports are already occupied, edit `backend.port` and
 `frontend.port` in `fortress-souls.config.jsonc` and rerun `scripts/dev.*`.
@@ -120,6 +130,11 @@ In `.env`:
 ```powershell
 FortressSouls__Llm__ApiKey=
 ```
+
+This combination supports bounded perception against deterministic fake game
+data. A surroundings question is sent to the provider with `look_around` in the
+structured `tools` field; the browser shows only the safe tool name and outcome
+after a successful call.
 
 ### JsonFile plus Fake
 
@@ -187,9 +202,23 @@ Combine the DFHack config above with:
 - `llm.providerType = OpenAiCompatible` in root config,
 - `FortressSouls__Llm__ApiKey` in `.env`.
 
+This combination supports the same bounded perception routes through the live
+read-only adapter. The model never receives a DFHack command or arbitrary
+coordinates. For a successful surroundings turn, the chat response and browser
+show a `look_around` / `success` receipt. The development prompt preview names
+the enabled tool and schema versions but does not contain the callable function
+definition or observation body; the provider request's structured `tools` field
+is the callable surface.
+
 Set `observability.otlpEndpoint` in the root config when you want Aspire
 Dashboard traces and metrics. Set it to an empty string to stay on console
 fallback only. Telemetry export must never be required for the app to start.
+
+Set `observability.diagnosticsEnabled` to `true` when diagnosing a local tool
+failure. It adds stable failure-cause tags such as `dfhack_invalid_data` to the
+agent tool span, but never exports prompts, responses, tool payloads, raw
+DFHack output, secrets, paths, or dwarf data. Restart the backend after
+changing this setting.
 
 ## Start Aspire Dashboard
 
@@ -419,6 +448,15 @@ Keep the stable user-facing error category and the displayed
 `X-Correlation-ID`, then inspect safe logs or traces by that correlation ID.
 Do not paste secrets, prompt text, model responses, raw DFHack output, or
 private filesystem paths into reports.
+
+### A surroundings answer has no perception receipt
+
+Confirm that `llm.providerType` is `OpenAiCompatible`, restart the dev process
+after configuration changes, and ask an explicit current-surroundings question
+such as `Look around and tell me what you see.` A successful tool turn has a
+`look_around` / `success` receipt. If the receipt is absent, inspect the safe
+provider status plus the correlated agent/provider spans. Prompt text mentioning
+`look_around` does not by itself prove that a structured function was sent.
 
 ### Logs contain prompt text or model response content
 

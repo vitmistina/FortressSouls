@@ -97,3 +97,9 @@ Prompt preview may exist only in development mode.
 Prompt preview must not include secrets.
 
 Prompt preview is a product/debug endpoint, not telemetry.
+
+`FortressSouls:Observability:DiagnosticsEnabled` may add stable, content-free
+failure-cause tags to agent tool spans for local diagnosis. It is disabled by
+default. It must never add prompts, model responses, tool arguments or results,
+raw DFHack output, provider bodies, headers, secrets, local paths, or dwarf
+data to telemetry.

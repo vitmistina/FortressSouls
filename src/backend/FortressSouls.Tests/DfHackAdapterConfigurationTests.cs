@@ -39,6 +39,47 @@ public sealed class DfHackAdapterConfigurationTests
     }
 
     [Fact]
+    public void LookAroundOptions_RejectsInvalidBounds()
+    {
+        Assert.Throws<ArgumentException>(() => new LookAroundOptions
+        {
+            DefaultRadius = 2,
+            MaxRadius = 1
+        }.Validate());
+
+        Assert.Throws<ArgumentException>(() => new LookAroundOptions
+        {
+            DefaultRadius = 1,
+            MaxRadius = LookAroundOptions.MaximumSupportedRadius + 1
+        }.Validate());
+    }
+
+    [Fact]
+    public void AddFortressSoulsDwarfFortress_BindsLookAroundOptions()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["FortressSouls:DwarfFortress:AdapterType"] = DwarfFortressAdapterType.DfHackProcess.ToString(),
+                ["FortressSouls:DfHack:RunPath"] = "C:\\dfhack\\hack\\dfhack-run.exe",
+                ["FortressSouls:DfHack:WorkingDirectory"] = "C:\\dfhack\\hack",
+                ["FortressSouls:DfHack:Host"] = "127.0.0.1",
+                ["FortressSouls:Perception:LookAround:DefaultRadius"] = "2",
+                ["FortressSouls:Perception:LookAround:MaxRadius"] = "8"
+            })
+            .Build();
+
+        var services = new ServiceCollection();
+        services.AddFortressSoulsDwarfFortress(configuration);
+
+        using var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<LookAroundOptions>();
+
+        Assert.Equal(2, options.DefaultRadius);
+        Assert.Equal(8, options.MaxRadius);
+    }
+
+    [Fact]
     public void DwarfFortressAdapterOptions_RejectsNumericAdapterTypeValue()
     {
         var options = new DwarfFortressAdapterOptions

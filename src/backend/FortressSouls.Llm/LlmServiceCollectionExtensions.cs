@@ -1,6 +1,7 @@
 namespace FortressSouls.Llm;
 
 using FortressSouls.Application;
+using FortressSouls.Observability;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -21,28 +22,27 @@ public static class LlmServiceCollectionExtensions
         if (options.ProviderType == LlmProviderType.Fake)
         {
             services.AddSingleton<IChatProvider>(sp => sp.GetRequiredService<FakeChatProvider>());
-            return services;
+            services.AddScoped<Microsoft.Extensions.AI.IChatClient, FakeToolLoopChatClient>();
+        }
+        else
+        {
+            services.AddSingleton(sp =>
+            {
+                var providerOptions = sp.GetRequiredService<LlmProviderOptions>();
+                return new HttpClient
+                {
+                    BaseAddress = providerOptions.GetValidatedEndpointUri(),
+                    Timeout = Timeout.InfiniteTimeSpan
+                };
+            });
+            services.AddSingleton<OpenAiCompatibleChatProvider>();
+            services.AddSingleton<IChatProvider>(sp => sp.GetRequiredService<OpenAiCompatibleChatProvider>());
+            services.AddScoped<Microsoft.Extensions.AI.IChatClient>(sp => new OpenAiCompatibleToolLoopChatClient(
+                sp.GetRequiredService<HttpClient>(),
+                sp.GetRequiredService<LlmProviderOptions>(),
+                sp.GetRequiredService<IChatProviderStatusRecorder>()));
         }
 
-        services.AddSingleton(sp =>
-        {
-            var providerOptions = sp.GetRequiredService<LlmProviderOptions>();
-            return new HttpClient
-            {
-                BaseAddress = providerOptions.GetValidatedEndpointUri(),
-                Timeout = Timeout.InfiniteTimeSpan
-            };
-        });
-        services.AddSingleton<OpenAiCompatibleChatProvider>();
-        services.AddSingleton<IChatProvider>(sp => sp.GetRequiredService<OpenAiCompatibleChatProvider>());
-        return services;
-    }
-
-    public static IServiceCollection AddFortressSoulsFakePerceptionAgent(this IServiceCollection services)
-    {
-        ArgumentNullException.ThrowIfNull(services);
-
-        services.AddScoped<Microsoft.Extensions.AI.IChatClient, FakeToolLoopChatClient>();
         services.AddScoped<IAgentToolRegistry>(sp =>
         {
             var queryService = sp.GetRequiredService<DwarfQueryService>();
@@ -50,7 +50,8 @@ public static class LlmServiceCollectionExtensions
                 queryService,
                 sp.GetRequiredService<ISurroundingsInspectionService>(),
                 sp.GetRequiredService<IStockInspectionService>(),
-                FakePerceptionFixtureSet.Default);
+                FakePerceptionFixtureSet.Default,
+                sp.GetRequiredService<LookAroundOptions>());
             var enabledToolNames = new HashSet<string>(StringComparer.Ordinal)
             {
                 FakePerceptionToolService.LookAroundToolName,
@@ -69,7 +70,8 @@ public static class LlmServiceCollectionExtensions
         services.AddScoped<IDwarfAgent>(sp => new MicrosoftExtensionsAiDwarfAgent(
             sp.GetRequiredService<Microsoft.Extensions.AI.IChatClient>(),
             sp.GetRequiredService<IAgentToolRegistry>(),
-            sp.GetRequiredService<LlmProviderOptions>()));
+            sp.GetRequiredService<LlmProviderOptions>(),
+            sp.GetRequiredService<ObservabilityDiagnosticsOptions>()));
 
         return services;
     }

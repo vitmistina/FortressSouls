@@ -216,7 +216,7 @@ public class ArchitectureTests
     }
 
     [Fact]
-    public void LlmRegistration_DoesNotRegisterToolLoopProbeServicesByDefault()
+    public void LlmRegistration_RegistersClosedProductAgentWithoutProbeServices()
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(
@@ -232,9 +232,9 @@ public class ArchitectureTests
 
         services.AddFortressSoulsLlm(configuration);
 
-        Assert.DoesNotContain(services, descriptor => descriptor.ServiceType == typeof(IDwarfAgent));
-        Assert.DoesNotContain(services, descriptor => descriptor.ServiceType == typeof(IAgentToolRegistry));
+        Assert.Single(services, descriptor => descriptor.ServiceType == typeof(IDwarfAgent));
+        Assert.Single(services, descriptor => descriptor.ServiceType == typeof(IAgentToolRegistry));
         Assert.DoesNotContain(services, descriptor => descriptor.ServiceType == typeof(ProbeObservationToolService));
-        Assert.DoesNotContain(services, descriptor => descriptor.ServiceType == typeof(IChatClient));
+        Assert.Single(services, descriptor => descriptor.ServiceType == typeof(IChatClient));
     }
 }

@@ -1,7 +1,7 @@
 # Provider Configuration Runbook
 
 Status: Draft  
-Applies to: v0.1 real provider mode  
+Applies to: v0.1 plain chat and v0.2 bounded perception
 Provider: OpenRouter through OpenAI-compatible HTTP API
 
 ## Default provider
@@ -232,6 +232,36 @@ retained artifact also records an important nuance from the current
 `deepseek/deepseek-v3.2` path: the raw endpoint accepted the tool-call wire
 shape, but the repository adapter needed explicit deterministic tool-use
 instruction to elicit the live call reliably from the probe harness.
+
+## Application perception smoke test for B2-011
+
+Start the application through `scripts/dev.*` with an OpenAI-compatible
+provider and either the Fake or DfHackProcess game adapter. Select a dwarf in
+the browser and send:
+
+```text
+Look around and tell me what you see.
+```
+
+Expected application behavior:
+
+- the initial provider request carries only the route-approved `look_around`
+  function in its structured `tools` field with automatic tool choice and
+  parallel calls disabled,
+- a valid tool call is checked against the closed registry and bounded
+  arguments before the active read-only surroundings service executes,
+- the validated observation is returned in a correlated tool message for the
+  second provider round,
+- the final API/browser response contains dwarf prose plus only the safe
+  `look_around` / `success` receipt,
+- provider status records the last provider-round outcome without making a
+  status-probe network request.
+
+The development prompt preview may contain `ENABLED_TOOLS: look_around` and
+schema versions. It must not contain provider call IDs, arguments, observation
+bodies, raw DFHack output, or credentials. Do not retain live request/response
+content as evidence. Record only mode, model, stable outcome, safe receipt,
+timing, and bounded error category.
 
 ## Provider status API
 

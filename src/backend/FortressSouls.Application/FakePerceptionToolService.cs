@@ -10,12 +10,6 @@ public sealed class FakePerceptionToolService
     public const string InspectStocksToolName = "inspect_stocks";
     public const string ListDwarvesToolName = "list_dwarves";
     public const string InspectDwarfToolName = "inspect_dwarf";
-    public const int DefaultLookAroundRadius = 1;
-    public const int MaxLookAroundRadius = 2;
-
-    private static readonly AgentToolDefinition LookAroundDefinition = new(
-        LookAroundToolName,
-        "Inspect a bounded revealed area around the selected dwarf.");
     private static readonly AgentToolDefinition InspectStocksDefinition = new(
         InspectStocksToolName,
         "Inspect an exact bounded fortress stock summary.");
@@ -40,13 +34,16 @@ public sealed class FakePerceptionToolService
     private readonly DwarfQueryService _dwarfQueryService;
     private readonly ISurroundingsInspectionService _surroundingsInspectionService;
     private readonly IStockInspectionService _stockInspectionService;
+    private readonly LookAroundOptions _lookAroundOptions;
+    private readonly AgentToolDefinition _lookAroundDefinition;
 
     public FakePerceptionToolService(DwarfQueryService dwarfQueryService, FakePerceptionFixtureSet fixtures)
         : this(
             dwarfQueryService,
             new FixtureSurroundingsInspectionService((fixtures ?? throw new ArgumentNullException(nameof(fixtures))).LookAround),
             new FixtureStockInspectionService((fixtures ?? throw new ArgumentNullException(nameof(fixtures))).Stocks),
-            fixtures)
+            fixtures,
+            LookAroundOptions.CreateDefault())
     {
     }
 
@@ -54,17 +51,22 @@ public sealed class FakePerceptionToolService
         DwarfQueryService dwarfQueryService,
         ISurroundingsInspectionService surroundingsInspectionService,
         IStockInspectionService stockInspectionService,
-        FakePerceptionFixtureSet fixtures)
+        FakePerceptionFixtureSet fixtures,
+        LookAroundOptions? lookAroundOptions = null)
     {
         _dwarfQueryService = dwarfQueryService ?? throw new ArgumentNullException(nameof(dwarfQueryService));
         _surroundingsInspectionService = surroundingsInspectionService ?? throw new ArgumentNullException(nameof(surroundingsInspectionService));
         _stockInspectionService = stockInspectionService ?? throw new ArgumentNullException(nameof(stockInspectionService));
         ArgumentNullException.ThrowIfNull(fixtures);
+        _lookAroundOptions = (lookAroundOptions ?? LookAroundOptions.CreateDefault()).Validate();
+        _lookAroundDefinition = new AgentToolDefinition(
+            LookAroundToolName,
+            $"Inspect a bounded revealed area around the selected dwarf. Radius is optional and must be an integer from {_lookAroundOptions.DefaultRadius} through {_lookAroundOptions.MaxRadius}.");
     }
 
     public IReadOnlyList<AgentToolRegistration> CreateRegistrations() =>
     [
-        new AgentToolRegistration(LookAroundDefinition, ExecuteLookAroundAsync, ValidateLookAroundInvocation),
+        new AgentToolRegistration(_lookAroundDefinition, ExecuteLookAroundAsync, ValidateLookAroundInvocation),
         new AgentToolRegistration(InspectStocksDefinition, ExecuteInspectStocksAsync, ValidateInspectStocksInvocation),
         new AgentToolRegistration(ListDwarvesDefinition, ExecuteListDwarvesAsync, ValidateListDwarvesInvocation),
         new AgentToolRegistration(InspectDwarfDefinition, ExecuteInspectDwarfAsync, ValidateInspectDwarfInvocation)
@@ -228,7 +230,7 @@ public sealed class FakePerceptionToolService
     private void ValidateInspectDwarfInvocation(AgentToolInvocation invocation) =>
         _ = ParseInspectDwarfArguments(invocation);
 
-    private static int ParseLookAroundArguments(AgentToolInvocation invocation)
+    private int ParseLookAroundArguments(AgentToolInvocation invocation)
     {
         ArgumentNullException.ThrowIfNull(invocation);
 
@@ -241,13 +243,13 @@ public sealed class FakePerceptionToolService
 
         if (!invocation.Arguments.TryGetProperty("radius", out var radiusValue))
         {
-            return DefaultLookAroundRadius;
+            return _lookAroundOptions.DefaultRadius;
         }
 
         if (radiusValue.ValueKind != JsonValueKind.Number
             || !radiusValue.TryGetInt32(out var radius)
-            || radius < DefaultLookAroundRadius
-            || radius > MaxLookAroundRadius)
+            || radius < _lookAroundOptions.DefaultRadius
+            || radius > _lookAroundOptions.MaxRadius)
         {
             throw InvalidArguments();
         }

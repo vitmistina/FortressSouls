@@ -111,7 +111,7 @@ Prompt, history, tool-description, observation, and output budgets are separate
 application limits. Tool-result truncation is schema-aware and deterministic;
 the implementation must not slice arbitrary JSON into an invalid payload.
 
-When a valid result cannot fit its per-call or cumulative observation budget,
+`look_around` allows one observation up to 256 KiB per turn. When a valid result cannot fit its per-call or cumulative observation budget,
 the runtime returns `result_too_large` or `budget_exhausted` according to the
 agent execution policy. It must not silently omit content while presenting the
 observation as complete.

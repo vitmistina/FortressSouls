@@ -73,7 +73,13 @@ $list.items | Select-Object id, displayName, professionName | Format-Table -Auto
 ## Validate `look_around`
 
 Replace `6597` and `1` with a valid ID and bounded radius from the list above.
-The current v0.2 implementation accepts `radius = 1` or `2`.
+The default application configuration accepts `radius = 1` or `2`. The
+application's `perception.lookAround.maxRadius` setting can lower or raise the
+allowed radius up to the safety ceiling of `16`; keep the configured value at
+or below the Lua script ceiling. Whenever that ceiling changes, copy the
+reviewed repository script into the DFHack runtime directory before starting
+the backend; otherwise an in-range application request can be returned by an
+older runtime script as `INVALID_ARGUMENT` and surface as `invalid_data`.
 
 ```powershell
 $dfhackRun = 'C:\Program Files (x86)\Steam\steamapps\common\DFHack\hack\dfhack-run.exe'
@@ -98,7 +104,7 @@ Expected:
 EXIT=0
 schemaVersion = fortress-souls-dwarf-surroundings.v0.2
 bounds.radius = 1 or 2
-cells.Count = 9 or 25
+cells.Count = (bounds.radius * 2 + 1)^2
 ```
 
 The product result is intentionally filtered. It must not expose absolute map

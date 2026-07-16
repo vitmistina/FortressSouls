@@ -18,15 +18,18 @@ public sealed class MicrosoftExtensionsAiDwarfAgent : IDwarfAgent
     private readonly IChatClient _chatClient;
     private readonly IAgentToolRegistry _toolRegistry;
     private readonly LlmProviderOptions _providerOptions;
+    private readonly ObservabilityDiagnosticsOptions _diagnosticsOptions;
 
     public MicrosoftExtensionsAiDwarfAgent(
         IChatClient chatClient,
         IAgentToolRegistry toolRegistry,
-        LlmProviderOptions providerOptions)
+        LlmProviderOptions providerOptions,
+        ObservabilityDiagnosticsOptions? diagnosticsOptions = null)
     {
         _chatClient = chatClient ?? throw new ArgumentNullException(nameof(chatClient));
         _toolRegistry = toolRegistry ?? throw new ArgumentNullException(nameof(toolRegistry));
         _providerOptions = providerOptions?.Validate() ?? throw new ArgumentNullException(nameof(providerOptions));
+        _diagnosticsOptions = diagnosticsOptions ?? new ObservabilityDiagnosticsOptions();
     }
 
     public async Task<AgentTurnResult> RunTurnAsync(AgentTurnRequest request, CancellationToken cancellationToken)
@@ -167,6 +170,7 @@ public sealed class MicrosoftExtensionsAiDwarfAgent : IDwarfAgent
                     {
                         toolActivity?.SetTag(FortressSoulsTelemetry.OperationOutcomeTagName, FortressSoulsTelemetry.ErrorOutcome);
                         toolActivity?.SetTag(FortressSoulsTelemetry.ErrorCategoryTagName, MapErrorCategory(exception.ErrorCode));
+                        SetDiagnosticFailureCause(toolActivity, exception);
                         throw;
                     }
                     catch (Exception exception)
@@ -247,6 +251,7 @@ public sealed class MicrosoftExtensionsAiDwarfAgent : IDwarfAgent
         {
             activity?.SetTag(FortressSoulsTelemetry.OperationOutcomeTagName, FortressSoulsTelemetry.ErrorOutcome);
             activity?.SetTag(FortressSoulsTelemetry.ErrorCategoryTagName, MapErrorCategory(exception.ErrorCode));
+            SetDiagnosticFailureCause(activity, exception);
             throw;
         }
         finally
@@ -300,6 +305,18 @@ public sealed class MicrosoftExtensionsAiDwarfAgent : IDwarfAgent
     {
         var bytes = JsonSerializer.SerializeToUtf8Bytes(result, SerializerOptions);
         return bytes.Length;
+    }
+
+    private void SetDiagnosticFailureCause(Activity? activity, AgentTurnException exception)
+    {
+        if (!_diagnosticsOptions.DiagnosticsEnabled || exception.InnerException is not DwarfFortressDataException dwarfFortressException)
+        {
+            return;
+        }
+
+        activity?.SetTag(
+            FortressSoulsTelemetry.DiagnosticFailureCauseTagName,
+            $"dfhack_{JsonNamingPolicy.SnakeCaseLower.ConvertName(dwarfFortressException.ErrorCode.ToString())}");
     }
 
     private IReadOnlyList<AgentToolDefinition> ResolveEnabledToolDefinitions(IReadOnlyList<string>? enabledToolNames)
