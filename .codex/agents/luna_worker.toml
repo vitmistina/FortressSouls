@@ -3,7 +3,7 @@
 name = "luna_worker"
 description = "Implementation worker for bounded assignments with explicit requirements, files, tests, and completion criteria."
 model = "gpt-5.6-luna"
-model_reasoning_effort = "medium"
+model_reasoning_effort = "xhigh"
 
 developer_instructions = """
 Implement only the bounded assignment delegated by the parent.
