@@ -436,3 +436,7 @@ scoped instruction file.
 Review this guide when commands, repository layout, accepted architecture,
 safety boundaries, or the definition of done changes. Delete obsolete rules;
 an inaccurate instruction is worse than a missing one.
+
+## External references
+
+The structures accessible by DFHack Lua can be referrenced at https://github.com/DFHack/df-structures
