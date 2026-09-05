@@ -6,6 +6,14 @@ public sealed class FixtureSurroundingsInspectionService(FakeLookAroundFixture f
 {
     private readonly FakeLookAroundFixture _fixture = fixture ?? throw new ArgumentNullException(nameof(fixture));
 
+    public Task<CurrentSceneObservation> ObserveCurrentSceneAsync(
+        DwarfId observerDwarfId,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(FakeCurrentSceneFixture.Default.Validate());
+    }
+
     public Task<LookAroundToolResult> InspectAroundAsync(
         DwarfId observerDwarfId,
         int requestedRadius,
@@ -158,6 +166,17 @@ public sealed class FixtureSurroundingsInspectionService(FakeLookAroundFixture f
 
 public sealed class UnavailableSurroundingsInspectionService : ISurroundingsInspectionService
 {
+    public Task<CurrentSceneObservation> ObserveCurrentSceneAsync(
+        DwarfId observerDwarfId,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        throw new DwarfFortressDataException(
+            DwarfFortressDataErrorCode.SourceUnavailable,
+            "Live current-scene inspection is unavailable for the active adapter.");
+    }
+
     public Task<LookAroundToolResult> InspectAroundAsync(
         DwarfId observerDwarfId,
         int requestedRadius,
