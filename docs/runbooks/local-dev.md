@@ -132,9 +132,9 @@ FortressSouls__Llm__ApiKey=
 ```
 
 This combination supports bounded perception against deterministic fake game
-data. A surroundings question is sent to the provider with `look_around` in the
-structured `tools` field; the browser shows only the safe tool name and outcome
-after a successful call.
+data. Every chat turn first sends the current scene in the provider's initial
+request; the browser shows a separate `Scene` / `Success` receipt. Optional
+stock and dwarf inspection tools remain available as structured tools.
 
 ### JsonFile plus Fake
 
@@ -202,13 +202,12 @@ Combine the DFHack config above with:
 - `llm.providerType = OpenAiCompatible` in root config,
 - `FortressSouls__Llm__ApiKey` in `.env`.
 
-This combination supports the same bounded perception routes through the live
-read-only adapter. The model never receives a DFHack command or arbitrary
-coordinates. For a successful surroundings turn, the chat response and browser
-show a `look_around` / `success` receipt. The development prompt preview names
-the enabled tool and schema versions but does not contain the callable function
-definition or observation body; the provider request's structured `tools` field
-is the callable surface.
+The production current-scene command is promoted for this release. Copy the
+reviewed repository script into the DFHack runtime directory before starting
+the backend. The application still reports `Scene` / `Unavailable` when the
+live adapter cannot acquire or validate a scene. The development prompt
+preview contains no scene rows; the provider request's structured tool field
+remains limited to the three optional stock/dwarf tools.
 
 Set `observability.otlpEndpoint` in the root config when you want Aspire
 Dashboard traces and metrics. Set it to an empty string to stay on console
@@ -449,14 +448,13 @@ Keep the stable user-facing error category and the displayed
 Do not paste secrets, prompt text, model responses, raw DFHack output, or
 private filesystem paths into reports.
 
-### A surroundings answer has no perception receipt
+### A surroundings answer has no current-scene receipt
 
-Confirm that `llm.providerType` is `OpenAiCompatible`, restart the dev process
-after configuration changes, and ask an explicit current-surroundings question
-such as `Look around and tell me what you see.` A successful tool turn has a
-`look_around` / `success` receipt. If the receipt is absent, inspect the safe
-provider status plus the correlated agent/provider spans. Prompt text mentioning
-`look_around` does not by itself prove that a structured function was sent.
+Confirm that the chat request completed and inspect the `Scene` receipt. A
+successful fake-mode or live-mode turn has a `Scene` / `Success` receipt; an
+unavailable live scene has `Scene` / `Unavailable` while the turn may continue.
+If the receipt is absent, inspect the safe provider status plus the correlated
+agent/provider spans. A failed turn must not display a scene success receipt.
 
 ### Logs contain prompt text or model response content
 

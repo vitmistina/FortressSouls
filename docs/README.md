@@ -26,6 +26,27 @@ ADR-0007 is accepted. The retained live provider evidence for R2-001 is in
 `research/r2-001-openrouter-tool-loop-live-proof-2026-06-22.md`. The current
 v0.2 release review is in `reviews/v0.2-release-review.md`.
 
+## v0.2.1 live-perception promotion
+
+The v0.2.1 preloaded-perception slice is implemented, including the promoted
+read-only current-scene DFHack command. The earlier reference save lacked a
+stair tile, an inventory-referenced carried-equipment case, and an active
+sheltered dwarf observer; the current-save rerun now supplies those three
+evidence cases.
+
+The human release decision recorded 2026-07-16 accepted the application-side
+slice and its retained research evidence. Promotion authorization was recorded
+for this release on 2026-09-05; the remaining manual UI/camera and
+surface-method/version checks remain documented follow-up validation, not an
+unclaimed live smoke result.
+
+The detailed evidence, retained live samples, promoted command, and follow-up
+checklist are in:
+
+- `research/r2.1-001-current-scene-extraction-2026-07-16.md`
+- `reviews/v0.2.1-release-review-2026-07-16.md`
+- `specs/minispecs/B2.1-application-preloaded-perception.md`
+
 ## Decisions
 
 - `decisions/adr-0003-dfhack-adapter.md` records the accepted v0.1 DFHack adapter invocation strategy.
