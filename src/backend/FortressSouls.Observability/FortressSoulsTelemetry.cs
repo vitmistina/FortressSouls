@@ -45,6 +45,8 @@ public static class FortressSoulsTelemetry
 
     public const string AgentToolCallActivityName = "fortresssouls.agent.tool.call";
 
+    public const string PerceptionSceneActivityName = "fortresssouls.perception.scene";
+
     public const string DwarvesListDurationMetricName = "fortresssouls.dwarves.list.duration";
 
     public const string DwarvesSnapshotDurationMetricName = "fortresssouls.dwarves.snapshot.duration";
@@ -96,6 +98,22 @@ public static class FortressSoulsTelemetry
     public const string ErrorCategoryTagName = "fortresssouls.error.category";
 
     public const string DiagnosticFailureCauseTagName = "fortresssouls.diagnostics.failure_cause";
+
+    public const string PerceptionSceneSchemaVersionTagName = "fortresssouls.perception.scene.schema_version";
+
+    public const string PerceptionSceneOutcomeTagName = "fortresssouls.perception.scene.outcome";
+
+    public const string PerceptionSceneErrorCategoryTagName = "fortresssouls.perception.scene.error_category";
+
+    public const string PerceptionSceneSiteWidthTagName = "fortresssouls.perception.scene.site_width";
+
+    public const string PerceptionSceneSiteHeightTagName = "fortresssouls.perception.scene.site_height";
+
+    public const string PerceptionSceneLocalWidthTagName = "fortresssouls.perception.scene.local_width";
+
+    public const string PerceptionSceneLocalHeightTagName = "fortresssouls.perception.scene.local_height";
+
+    public const string PerceptionSceneWarningCountTagName = "fortresssouls.perception.scene.warning_count";
 
     public const string SuccessOutcome = "success";
 

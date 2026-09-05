@@ -19,17 +19,20 @@ public sealed class MicrosoftExtensionsAiDwarfAgent : IDwarfAgent
     private readonly IAgentToolRegistry _toolRegistry;
     private readonly LlmProviderOptions _providerOptions;
     private readonly ObservabilityDiagnosticsOptions _diagnosticsOptions;
+    private readonly IChatProviderStatusRecorder? _statusRecorder;
 
     public MicrosoftExtensionsAiDwarfAgent(
         IChatClient chatClient,
         IAgentToolRegistry toolRegistry,
         LlmProviderOptions providerOptions,
-        ObservabilityDiagnosticsOptions? diagnosticsOptions = null)
+        ObservabilityDiagnosticsOptions? diagnosticsOptions = null,
+        IChatProviderStatusRecorder? statusRecorder = null)
     {
         _chatClient = chatClient ?? throw new ArgumentNullException(nameof(chatClient));
         _toolRegistry = toolRegistry ?? throw new ArgumentNullException(nameof(toolRegistry));
         _providerOptions = providerOptions?.Validate() ?? throw new ArgumentNullException(nameof(providerOptions));
         _diagnosticsOptions = diagnosticsOptions ?? new ObservabilityDiagnosticsOptions();
+        _statusRecorder = statusRecorder;
     }
 
     public async Task<AgentTurnResult> RunTurnAsync(AgentTurnRequest request, CancellationToken cancellationToken)
@@ -48,6 +51,7 @@ public sealed class MicrosoftExtensionsAiDwarfAgent : IDwarfAgent
 
         using var turnTimeoutSource = new CancellationTokenSource(policy.TurnTimeout);
         using var linkedSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, turnTimeoutSource.Token);
+        var turnStopwatch = Stopwatch.StartNew();
 
         using var activity = FortressSoulsTelemetry.ActivitySource.StartActivity(FortressSoulsTelemetry.AgentTurnActivityName, ActivityKind.Internal);
         activity?.SetTag(FortressSoulsTelemetry.ChatSessionIdTagName, session.SessionId);
@@ -108,6 +112,7 @@ public sealed class MicrosoftExtensionsAiDwarfAgent : IDwarfAgent
                         throw InvalidData();
                     }
 
+                    RecordFakeProviderSuccess(turnStopwatch.Elapsed);
                     activity?.SetTag(FortressSoulsTelemetry.OperationOutcomeTagName, FortressSoulsTelemetry.SuccessOutcome);
                     return new AgentTurnResult(assistantMessage, providerType, model, receipts);
                 }
@@ -237,6 +242,7 @@ public sealed class MicrosoftExtensionsAiDwarfAgent : IDwarfAgent
         }
         catch (LlmProviderException exception)
         {
+            RecordFakeProviderFailure(exception.ErrorCode);
             var mapped = MapProviderException(exception);
             activity?.SetTag(FortressSoulsTelemetry.OperationOutcomeTagName, FortressSoulsTelemetry.ErrorOutcome);
             activity?.SetTag(FortressSoulsTelemetry.ErrorCategoryTagName, MapProviderErrorCategory(exception.ErrorCode));
@@ -249,6 +255,7 @@ public sealed class MicrosoftExtensionsAiDwarfAgent : IDwarfAgent
         }
         catch (AgentTurnException exception)
         {
+            RecordFakeProviderFailure(exception.ErrorCode);
             activity?.SetTag(FortressSoulsTelemetry.OperationOutcomeTagName, FortressSoulsTelemetry.ErrorOutcome);
             activity?.SetTag(FortressSoulsTelemetry.ErrorCategoryTagName, MapErrorCategory(exception.ErrorCode));
             SetDiagnosticFailureCause(activity, exception);
@@ -257,6 +264,22 @@ public sealed class MicrosoftExtensionsAiDwarfAgent : IDwarfAgent
         finally
         {
             session.TurnState.EndTurn();
+        }
+    }
+
+    private void RecordFakeProviderSuccess(TimeSpan duration)
+    {
+        if (ResolveProviderType() == FakeToolLoopChatClient.ProviderTypeName)
+        {
+            _statusRecorder?.RecordSuccess(duration);
+        }
+    }
+
+    private void RecordFakeProviderFailure(Enum errorCode)
+    {
+        if (ResolveProviderType() == FakeToolLoopChatClient.ProviderTypeName)
+        {
+            _statusRecorder?.RecordFailure(errorCode.ToString().ToLowerInvariant());
         }
     }
 

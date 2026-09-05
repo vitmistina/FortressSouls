@@ -109,18 +109,17 @@ public class ArchitectureTests
     }
 
     [Fact]
-    public void SurroundingsInspectionPort_ExposesSingleSessionBoundedCancellationAwareMethod()
+    public void SurroundingsInspectionPort_ExposesCurrentSceneAndLegacyMigrationMethods()
     {
         var methods = typeof(ISurroundingsInspectionService).GetMethods();
-        var method = Assert.Single(methods);
-        Assert.Equal(nameof(ISurroundingsInspectionService.InspectAroundAsync), method.Name);
-
-        var parameters = method.GetParameters();
+        var currentSceneMethod = Assert.Single(methods, method => method.Name == nameof(ISurroundingsInspectionService.ObserveCurrentSceneAsync));
+        var currentSceneParameters = currentSceneMethod.GetParameters();
         Assert.Collection(
-            parameters,
+            currentSceneParameters,
             parameter => Assert.Equal(typeof(DwarfId), parameter.ParameterType),
-            parameter => Assert.Equal(typeof(int), parameter.ParameterType),
             parameter => Assert.Equal(typeof(CancellationToken), parameter.ParameterType));
+
+        Assert.Contains(methods, method => method.Name == nameof(ISurroundingsInspectionService.InspectAroundAsync));
     }
 
     [Fact]

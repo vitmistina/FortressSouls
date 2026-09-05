@@ -16,11 +16,10 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 public sealed class RealProviderPerceptionCompositionTests
 {
     [Fact]
-    public async Task OpenAiCompatiblePerceptionTurn_SendsLookAroundToolAndReturnsSafeReceipt()
+    public async Task OpenAiCompatiblePerceptionTurn_PreloadsSceneAndReturnsObservationReceipt()
     {
         var handler = new SequenceHandler(
-            """{"choices":[{"message":{"content":null,"tool_calls":[{"id":"call-look-around","function":{"name":"look_around","arguments":"{\"radius\":1}"}}]}}]}""",
-            """{"choices":[{"message":{"content":"I see worked stone and several figures nearby."}}]}""");
+            """{"choices":[{"message":{"content":"I see the wagon and several figures nearby."}}]}""");
         using var providerClient = new HttpClient(handler)
         {
             BaseAddress = new Uri("https://openrouter.ai/api/v1/"),
@@ -37,20 +36,17 @@ public sealed class RealProviderPerceptionCompositionTests
 
         var sendResponse = await client.PostAsJsonAsync(
             $"/api/chat/sessions/{created!.SessionId}/messages",
-            new SendChatMessageRequest("Look around and tell me what you see."));
+            new SendChatMessageRequest("What is around us?"));
 
         Assert.Equal(HttpStatusCode.OK, sendResponse.StatusCode);
         var sent = await sendResponse.Content.ReadFromJsonAsync<SendChatMessageResponse>();
         Assert.NotNull(sent);
-        Assert.Equal("I see worked stone and several figures nearby.", sent!.AssistantMessage.Text);
+        Assert.Equal("I see the wagon and several figures nearby.", sent!.AssistantMessage.Text);
         Assert.Equal("OpenAiCompatible", sent.Diagnostics.Provider);
-        Assert.Collection(
-            sent.ToolReceipts,
-            receipt =>
-            {
-                Assert.Equal("look_around", receipt.Tool);
-                Assert.Equal("success", receipt.Outcome);
-            });
+        Assert.Empty(sent.ToolReceipts);
+        var observation = Assert.Single(sent.ObservationReceipts);
+        Assert.Equal("current_scene", observation.Capability);
+        Assert.Equal("success", observation.Outcome);
 
         var status = await (await client.GetAsync("/api/provider/status"))
             .Content.ReadFromJsonAsync<ProviderStatusResponse>();
@@ -58,36 +54,27 @@ public sealed class RealProviderPerceptionCompositionTests
         Assert.Equal("success", status!.LastOutcome);
         Assert.Null(status.LastErrorCategory);
 
-        Assert.Equal(2, handler.RequestBodies.Count);
+        Assert.Single(handler.RequestBodies);
         using var firstRequest = JsonDocument.Parse(handler.RequestBodies[0]);
         var firstRoot = firstRequest.RootElement;
-        var tool = Assert.Single(firstRoot.GetProperty("tools").EnumerateArray());
-        Assert.Equal("function", tool.GetProperty("type").GetString());
-        Assert.Equal("look_around", tool.GetProperty("function").GetProperty("name").GetString());
+        var tools = firstRoot.GetProperty("tools").EnumerateArray().ToArray();
+        Assert.Collection(
+            tools,
+            tool => Assert.Equal("inspect_dwarf", tool.GetProperty("function").GetProperty("name").GetString()),
+            tool => Assert.Equal("inspect_stocks", tool.GetProperty("function").GetProperty("name").GetString()),
+            tool => Assert.Equal("list_dwarves", tool.GetProperty("function").GetProperty("name").GetString()));
         Assert.Equal("auto", firstRoot.GetProperty("tool_choice").GetString());
         Assert.False(firstRoot.GetProperty("parallel_tool_calls").GetBoolean());
         Assert.Contains(
             firstRoot.GetProperty("messages").EnumerateArray(),
             message => message.GetProperty("role").GetString() == "system"
-                && message.GetProperty("content").GetString()!.Contains("ENABLED_TOOLS: look_around", StringComparison.Ordinal));
-
-        using var secondRequest = JsonDocument.Parse(handler.RequestBodies[1]);
-        var secondMessages = secondRequest.RootElement.GetProperty("messages").EnumerateArray().ToArray();
-        Assert.Contains(
-            secondMessages,
-            message => message.GetProperty("role").GetString() == "assistant"
-                && message.GetProperty("tool_calls")[0].GetProperty("id").GetString() == "call-look-around");
-        Assert.Contains(
-            secondMessages,
-            message => message.GetProperty("role").GetString() == "tool"
-                && message.GetProperty("tool_call_id").GetString() == "call-look-around");
+                && message.GetProperty("content").GetString()!.Contains("CURRENT_PERCEPTION format=FSMP/1", StringComparison.Ordinal));
 
         var preview = await (await client.GetAsync($"/api/chat/sessions/{created.SessionId}/prompt-preview"))
             .Content.ReadFromJsonAsync<PromptPreviewResponse>();
         Assert.NotNull(preview);
-        Assert.Contains("ENABLED_TOOLS: look_around", preview!.PromptText, StringComparison.Ordinal);
-        Assert.DoesNotContain("call-look-around", preview.PromptText, StringComparison.Ordinal);
-        Assert.DoesNotContain("\"cells\"", preview.PromptText, StringComparison.Ordinal);
+        Assert.Contains("content=[redacted]", preview!.PromptText, StringComparison.Ordinal);
+        Assert.DoesNotContain("[LOCAL projection=", preview.PromptText, StringComparison.Ordinal);
     }
 
     [Fact]

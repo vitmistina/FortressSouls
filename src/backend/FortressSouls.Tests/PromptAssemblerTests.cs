@@ -62,7 +62,7 @@ public sealed class PromptAssemblerTests
         Assert.Contains("TOOL_SCHEMAS_JSON:", result.PromptText, StringComparison.Ordinal);
         Assert.Contains(PromptContract.LookAroundArgumentsSchemaVersion, result.PromptText, StringComparison.Ordinal);
         Assert.Contains(PromptContract.LookAroundResultSchemaVersion, result.PromptText, StringComparison.Ordinal);
-        Assert.Contains("use look_around before answering when it is enabled", result.PromptText, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Current perception is the primary source for present spatial claims.", result.PromptText, StringComparison.Ordinal);
         Assert.Contains("Do not answer current-state questions from guesswork", result.PromptText, StringComparison.Ordinal);
         Assert.Contains("Qualify conclusions when separate tool calls may reflect different game times.", result.PromptText, StringComparison.Ordinal);
         Assert.DoesNotContain(PromptContract.InspectStocksArgumentsSchemaVersion, result.PromptText, StringComparison.Ordinal);
@@ -620,7 +620,7 @@ public sealed class PromptAssemblerTests
 
     private const string ReviewedGoldenPrompt =
         """
-        TEMPLATE_VERSION: fortress-souls-prompt-template.v0.2
+        TEMPLATE_VERSION: fortress-souls-prompt-template.v0.2.1
         STATIC_GUIDE_VERSION: fortress-souls-interpretation-guide.v0.2
 
         SYSTEM:

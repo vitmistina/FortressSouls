@@ -62,8 +62,8 @@ public sealed class ProviderConfigurationTests
             $"/api/chat/sessions/{created!.SessionId}/messages",
             new SendChatMessageRequest("hello"));
         var error = await send.Content.ReadFromJsonAsync<ApiErrorResponse>();
-        Assert.Equal(HttpStatusCode.InternalServerError, send.StatusCode);
-        Assert.Equal("chat_provider_invalid_configuration", error!.ErrorCode);
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, send.StatusCode);
+        Assert.Equal("chat_provider_unavailable", error!.ErrorCode);
     }
 
     [Fact]

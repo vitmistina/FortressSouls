@@ -28,7 +28,9 @@ public sealed record AgentPromptInputs(
     IReadOnlyList<PromptConversationMessage> Conversation,
     string PlayerMessage,
     IReadOnlyList<PromptToolDefinition> EnabledTools,
-    string? StaticInterpretationGuide = null);
+    string? StaticInterpretationGuide = null,
+    CurrentSceneObservation? CurrentScene = null,
+    bool CurrentSceneUnavailable = false);
 
 public sealed record PromptAssemblyOptions(
     int MaxPromptCharacters = 10_000,
@@ -74,6 +76,10 @@ public sealed record PromptAssemblyResult(
     string? PromptText,
     PromptAssemblyDiagnostics Diagnostics)
 {
+    public string? ProviderPromptText => PromptText;
+
+    public string? SafePreviewText { get; init; }
+
     public bool Succeeded => FailureCategory == PromptAssemblyFailureCategory.None;
 
     public PromptAssemblyFailureCategory FailureCategory => Diagnostics.FailureCategory;

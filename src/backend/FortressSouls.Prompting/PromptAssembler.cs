@@ -3,6 +3,7 @@ namespace FortressSouls.Prompting;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
+using FortressSouls.Domain;
 using FortressSouls.Observability;
 
 public sealed class PromptAssembler
@@ -256,6 +257,32 @@ public sealed class PromptAssembler
             return CreateValidationFailure();
         }
 
+        string? currentPerception = null;
+        string? safeCurrentPerception = null;
+        if (inputs.CurrentSceneUnavailable && inputs.CurrentScene is not null)
+        {
+            return CreateValidationFailure();
+        }
+
+        if (inputs.CurrentScene is not null)
+        {
+            try
+            {
+                var formattedScene = CurrentSceneFormatter.Format(inputs.CurrentScene);
+                currentPerception = formattedScene.Text;
+                safeCurrentPerception = CurrentSceneFormatter.CreateSafePreview(inputs.CurrentScene);
+            }
+            catch (CurrentSceneValidationException)
+            {
+                return CreateValidationFailure();
+            }
+        }
+        else if (inputs.CurrentSceneUnavailable)
+        {
+            currentPerception = "CURRENT_PERCEPTION unavailable\n";
+            safeCurrentPerception = CurrentSceneFormatter.CreateUnavailablePreview();
+        }
+
         var snapshotJson = JsonSerializer.Serialize(BuildPromptDwarfState(inputs.Snapshot), SerializerOptions);
         var conversationJson = JsonSerializer.Serialize(normalizedConversation, SerializerOptions);
         var playerJson = JsonSerializer.Serialize(new PromptPlayerPayload(normalizedPlayerMessage), SerializerOptions);
@@ -266,7 +293,17 @@ public sealed class PromptAssembler
             conversationJson,
             playerJson,
             string.Join(", ", orderedTools!.Select(tool => tool!.Tool)),
-            toolsJson);
+            toolsJson,
+            currentPerception);
+
+        var safePreview = BuildAgentPrompt(
+            snapshotJson,
+            normalizedGuide,
+            conversationJson,
+            playerJson,
+            string.Join(", ", orderedTools!.Select(tool => tool!.Tool)),
+            toolsJson,
+            safeCurrentPerception);
 
         while (promptText.Length > options.MaxPromptCharacters && normalizedConversation.Count > 0)
         {
@@ -279,7 +316,16 @@ public sealed class PromptAssembler
                 conversationJson,
                 playerJson,
                 string.Join(", ", orderedTools!.Select(tool => tool!.Tool)),
-                toolsJson);
+                toolsJson,
+                currentPerception);
+            safePreview = BuildAgentPrompt(
+                snapshotJson,
+                normalizedGuide,
+                conversationJson,
+                playerJson,
+                string.Join(", ", orderedTools!.Select(tool => tool!.Tool)),
+                toolsJson,
+                safeCurrentPerception);
         }
 
         var truncation = new PromptTruncationInfo(
@@ -299,7 +345,10 @@ public sealed class PromptAssembler
         }
 
         var diagnostics = CreateDiagnostics(PromptAssemblyFailureCategory.None, truncation, promptText.Length, normalizedConversation.Count);
-        return new PromptAssemblyResult(promptText, diagnostics);
+        return new PromptAssemblyResult(promptText, diagnostics)
+        {
+            SafePreviewText = safePreview
+        };
     }
 
     private static string BuildPrompt(string snapshotJson, string normalizedGuide, string conversationJson, string playerJson)
@@ -323,7 +372,8 @@ public sealed class PromptAssembler
         string conversationJson,
         string playerJson,
         string enabledTools,
-        string toolsJson)
+        string toolsJson,
+        string? currentPerception)
     {
         var normalizedSystemInstruction = NormalizeNewlines(PromptContract.SystemInstruction);
         var normalizedToolInstructions = NormalizeNewlines(PromptContract.ToolInstructionBlock);
@@ -335,7 +385,14 @@ public sealed class PromptAssembler
         builder.Append('\n');
         builder.Append("SYSTEM:\n").Append(normalizedSystemInstruction).Append('\n');
         builder.Append("AGENT_TOOL_RULES:\n").Append(normalizedToolInstructions).Append('\n');
+        builder.Append("CURRENT_PERCEPTION_INSTRUCTIONS:\n")
+            .Append(NormalizeNewlines(PromptContract.CurrentPerceptionInstructionBlock))
+            .Append('\n');
         builder.Append("TOOL_SCHEMAS_JSON:\n").Append(toolsJson).Append('\n');
+        if (currentPerception is not null)
+        {
+            builder.Append(currentPerception).Append('\n');
+        }
         builder.Append("DWARF_STATE_JSON:\n").Append(snapshotJson).Append('\n');
         builder.Append("INTERPRETATION_GUIDE:\n").Append(normalizedGuide).Append('\n');
         builder.Append("CONVERSATION_JSON:\n").Append(conversationJson).Append('\n');

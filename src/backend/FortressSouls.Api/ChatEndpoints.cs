@@ -95,6 +95,9 @@ internal static class ChatEndpoints
                         result.Diagnostics.PromptId),
                     ToolReceipts: result.ToolReceipts
                         .Select(receipt => new ChatToolReceiptResponse(receipt.Tool, receipt.Outcome))
+                        .ToArray(),
+                    ObservationReceipts: result.ObservationReceipts
+                        .Select(receipt => new ChatObservationReceiptResponse(receipt.Capability, receipt.Outcome))
                         .ToArray()));
         }
         catch (OperationCanceledException)
@@ -132,6 +135,15 @@ internal static class ChatEndpoints
             };
 
             return TypedResults.Json(new ApiErrorResponse(errorCode, message), statusCode: statusCode);
+        }
+        catch (DwarfFortressDataException exception)
+        {
+            var errorCode = exception.ErrorCode == DwarfFortressDataErrorCode.InvalidData
+                ? "current_scene_invalid"
+                : "current_scene_unavailable";
+            return TypedResults.Json(
+                new ApiErrorResponse(errorCode, "The current scene could not be validated."),
+                statusCode: StatusCodes.Status503ServiceUnavailable);
         }
     }
 
