@@ -31,9 +31,10 @@ test("loads list, selects dwarf, chats, and shows safe fake diagnostics", async 
   const conversation = page.getByRole("list", { name: "Conversation" });
   await expect(conversation.getByText(message)).toBeVisible();
   await expect(conversation.getByText(/I can see/i)).toBeVisible();
-  await expect(conversation.getByText("Perception")).toBeVisible();
-  await expect(conversation.getByText("look_around")).toBeVisible();
+  await expect(conversation.getByText("Current scene")).toBeVisible();
+  await expect(conversation.getByText("Scene", { exact: true })).toBeVisible();
   await expect(conversation.getByText("Success")).toBeVisible();
+  await expect(conversation.getByText("look_around")).not.toBeVisible();
 
   const diagnostics = conversation.getByText(
     /Provider:\s*Fake.*Model:\s*fake-dwarf.*Duration:\s*\d+ms.*Prompt:\s*prompt-[0-9a-f]{12}/,
@@ -43,4 +44,63 @@ test("loads list, selects dwarf, chats, and shows safe fake diagnostics", async 
   await expect(diagnostics).not.toContainText("Authorization");
   await expect(conversation).not.toContainText("\"cells\"");
   await expect(conversation).not.toContainText("radius");
+});
+
+test("renders an unavailable current scene without claiming success", async ({ page }) => {
+  await page.route("**/api/chat/sessions/*/messages", async (route) => {
+    const sessionId = route.request().url().match(/\/sessions\/([^/]+)\/messages/)?.[1];
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        sessionId,
+        dwarfId: "4101",
+        assistantMessage: { role: "assistant", text: "I cannot see the fortress right now." },
+        diagnostics: { provider: "Fake", model: "fake-dwarf", durationMs: 10, promptId: "prompt-unavailable" },
+        toolReceipts: [],
+        observationReceipts: [{ capability: "current_scene", outcome: "unavailable" }],
+      }),
+    });
+  });
+
+  await page.goto("/");
+  await page.getByRole("button", { name: /Iden Torrentshade/i }).click();
+
+  const chatPanel = page.locator("article", {
+    has: page.getByRole("heading", { name: "Chat" }),
+  });
+  await chatPanel.getByLabel("Message").fill("What is around us?");
+  await chatPanel.getByRole("button", { name: "Send" }).click();
+
+  const conversation = page.getByRole("list", { name: "Conversation" });
+  await expect(conversation.getByText("I cannot see the fortress right now.")).toBeVisible();
+  await expect(conversation.getByText("Current scene", { exact: true })).toBeVisible();
+  await expect(conversation.getByText("Unavailable", { exact: true })).toBeVisible();
+  await expect(conversation.getByText("Success")).not.toBeVisible();
+});
+
+test("does not render a scene receipt when the chat turn fails", async ({ page }) => {
+  await page.route("**/api/chat/sessions/*/messages", async (route) => {
+    await route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      headers: { "X-Correlation-ID": "trace-provider-failure" },
+      body: JSON.stringify({ errorCode: "chat_provider_unavailable" }),
+    });
+  });
+
+  await page.goto("/");
+  await page.getByRole("button", { name: /Iden Torrentshade/i }).click();
+
+  const chatPanel = page.locator("article", {
+    has: page.getByRole("heading", { name: "Chat" }),
+  });
+  await chatPanel.getByLabel("Message").fill("What is around us?");
+  await chatPanel.getByRole("button", { name: "Send" }).click();
+
+  await expect(page.getByRole("alert")).toContainText("The chat provider is unavailable right now.");
+  const conversation = page.getByRole("list", { name: "Conversation" });
+  await expect(conversation.getByText("What is around us?")).not.toBeVisible();
+  await expect(conversation.getByText("Current scene")).not.toBeVisible();
+  await expect(conversation.getByText("Success")).not.toBeVisible();
 });

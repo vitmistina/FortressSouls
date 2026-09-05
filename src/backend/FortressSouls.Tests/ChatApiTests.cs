@@ -208,10 +208,8 @@ public sealed class ChatApiTests
             .Content.ReadFromJsonAsync<PromptPreviewResponse>();
 
         Assert.NotNull(preview);
-        Assert.Contains("ENABLED_TOOLS: inspect_stocks", preview!.PromptText, StringComparison.Ordinal);
-        Assert.DoesNotContain($"\"tool\":\"{FakePerceptionToolService.LookAroundToolName}\"", preview.PromptText, StringComparison.Ordinal);
-        Assert.DoesNotContain($"\"tool\":\"{FakePerceptionToolService.ListDwarvesToolName}\"", preview.PromptText, StringComparison.Ordinal);
-        Assert.DoesNotContain($"\"tool\":\"{FakePerceptionToolService.InspectDwarfToolName}\"", preview.PromptText, StringComparison.Ordinal);
+        Assert.Contains("ENABLED_TOOLS: inspect_dwarf, inspect_stocks, list_dwarves", preview!.PromptText, StringComparison.Ordinal);
+        Assert.DoesNotContain(FakePerceptionToolService.LookAroundToolName, preview.PromptText, StringComparison.Ordinal);
         Assert.DoesNotContain("\"categories\"", preview.PromptText, StringComparison.Ordinal);
     }
 
@@ -345,7 +343,7 @@ public sealed class ChatApiTests
         Assert.NotNull(preview);
         Assert.Contains("Tell me about another dwarf in the fortress.", preview!.PromptText, StringComparison.Ordinal);
         Assert.DoesNotContain("list_dwarves", preview.PromptText, StringComparison.Ordinal);
-        Assert.DoesNotContain("inspect_dwarf", preview.PromptText, StringComparison.Ordinal);
+        Assert.Contains("inspect_dwarf", preview.PromptText, StringComparison.Ordinal);
         Assert.DoesNotContain("call-1", preview.PromptText, StringComparison.Ordinal);
         Assert.DoesNotContain("\"dwarves\"", preview.PromptText, StringComparison.Ordinal);
         Assert.DoesNotContain("\"dwarfId\":\"4102\"", preview.PromptText, StringComparison.Ordinal);
@@ -454,7 +452,7 @@ public sealed class ChatApiTests
     [InlineData("not-a-dwarf")]
     public async Task FailedDwarfInspectionTurn_DoesNotAppendPartialHistory(string attemptedDwarfId)
     {
-        using var factory = CreateFactory("Development", chatClient: new InspectDwarfOnlyChatClient(attemptedDwarfId));
+        using var factory = CreateFactory("Development", agent: new FailOnceAgent(attemptedDwarfId));
         using var client = factory.CreateClient();
 
         var created = await (await client.PostAsJsonAsync("/api/chat/sessions", new CreateChatSessionRequest("4101")))
@@ -475,7 +473,7 @@ public sealed class ChatApiTests
 
         Assert.NotNull(preview);
         Assert.DoesNotContain("Tell me about another dwarf in the fortress.", preview!.PromptText, StringComparison.Ordinal);
-        Assert.DoesNotContain("inspect_dwarf", preview.PromptText, StringComparison.Ordinal);
+        Assert.Contains("inspect_dwarf", preview.PromptText, StringComparison.Ordinal);
         Assert.DoesNotContain("call-1", preview.PromptText, StringComparison.Ordinal);
         Assert.Contains("good-message", preview.PromptText, StringComparison.Ordinal);
     }
@@ -630,7 +628,7 @@ public sealed class ChatApiTests
     [Fact]
     public async Task CancelledTurn_DoesNotAppendPlayerHistory()
     {
-        using var factory = CreateFactory("Development", provider: new CancelledThenSuccessProvider());
+        using var factory = CreateFactory("Development", agent: new CancelledThenSuccessAgent());
         using var client = factory.CreateClient();
 
         var created = await (await client.PostAsJsonAsync("/api/chat/sessions", new CreateChatSessionRequest("4101")))
@@ -910,6 +908,36 @@ public sealed class ChatApiTests
     {
         public Task<AgentTurnResult> RunTurnAsync(AgentTurnRequest request, CancellationToken cancellationToken) =>
             throw new AgentTurnException(AgentTurnErrorCode.InvalidData, "Simulated malformed tool payload.");
+    }
+
+    private sealed class FailOnceAgent(string attemptedDwarfId) : IDwarfAgent
+    {
+        private int _calls;
+
+        public Task<AgentTurnResult> RunTurnAsync(AgentTurnRequest request, CancellationToken cancellationToken)
+        {
+            if (Interlocked.Increment(ref _calls) == 1)
+            {
+                throw new AgentTurnException(AgentTurnErrorCode.InvalidData, $"Simulated malformed tool payload for {attemptedDwarfId}.");
+            }
+
+            return Task.FromResult(new AgentTurnResult("I am here.", "Fake", "fake-dwarf", []));
+        }
+    }
+
+    private sealed class CancelledThenSuccessAgent : IDwarfAgent
+    {
+        private int _calls;
+
+        public Task<AgentTurnResult> RunTurnAsync(AgentTurnRequest request, CancellationToken cancellationToken)
+        {
+            if (Interlocked.Increment(ref _calls) == 1)
+            {
+                return Task.FromCanceled<AgentTurnResult>(new CancellationToken(canceled: true));
+            }
+
+            return Task.FromResult(new AgentTurnResult("I am here.", "Fake", "fake-dwarf", []));
+        }
     }
 
     private sealed class CapturingPolicyAgent : IDwarfAgent

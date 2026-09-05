@@ -32,7 +32,8 @@ public sealed record ChatSendMessageResult(
     string DwarfId,
     string AssistantMessage,
     ChatTurnDiagnostics Diagnostics,
-    IReadOnlyList<AgentToolReceipt> ToolReceipts);
+    IReadOnlyList<AgentToolReceipt> ToolReceipts,
+    IReadOnlyList<AgentObservationReceipt> ObservationReceipts);
 
 public sealed record ChatPromptPreviewResult(
     string SessionId,

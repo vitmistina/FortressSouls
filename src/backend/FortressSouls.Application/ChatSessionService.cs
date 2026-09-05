@@ -10,78 +10,33 @@ using FortressSouls.Prompting;
 public sealed class ChatSessionService(
     DwarfQueryService dwarfQueryService,
     IChatSessionStore sessionStore,
-    IChatProvider chatProvider,
     PromptAssembler promptAssembler,
     ChatSessionOptions options,
+    ISurroundingsInspectionService surroundingsInspectionService,
     IEnumerable<IDwarfAgent> dwarfAgents)
 {
-    private static readonly TimeSpan PerceptionTurnTimeout = TimeSpan.FromSeconds(180);
-    private static readonly TimeSpan PerceptionToolTimeout = TimeSpan.FromSeconds(30);
-    private static readonly AgentExecutionPolicy LookAroundExecutionPolicy = new(
-        MaximumRounds: 2,
-        MaximumToolCalls: 1,
-        MaximumToolResultBytes: 256 * 1024,
-        MaximumTotalToolResultBytes: 256 * 1024,
-        TurnTimeout: PerceptionTurnTimeout,
-        ToolTimeout: PerceptionToolTimeout);
-    private static readonly AgentExecutionPolicy StockInspectionExecutionPolicy = new(
-        MaximumRounds: 2,
-        MaximumToolCalls: 1,
-        MaximumToolResultBytes: 1_024,
-        MaximumTotalToolResultBytes: 1_024,
-        TurnTimeout: PerceptionTurnTimeout,
-        ToolTimeout: PerceptionToolTimeout);
-    private static readonly AgentExecutionPolicy DwarfInspectionExecutionPolicy = new(
-        MaximumRounds: 3,
-        MaximumToolCalls: 2,
-        MaximumToolResultBytes: 2_048,
-        MaximumTotalToolResultBytes: 4_096,
-        TurnTimeout: PerceptionTurnTimeout,
-        ToolTimeout: PerceptionToolTimeout);
-    private static readonly PromptToolDefinition[] LookAroundPromptTools =
+    private static readonly TimeSpan TurnTimeout = TimeSpan.FromSeconds(180);
+    private static readonly TimeSpan ToolTimeout = TimeSpan.FromSeconds(30);
+    private static readonly AgentExecutionPolicy NormalExecutionPolicy = new(3, 2, 2_048, 4_096, TurnTimeout, ToolTimeout);
+    private static readonly PromptToolDefinition[] NormalPromptTools =
     [
-        new(
-            FakePerceptionToolService.LookAroundToolName,
-            PromptContract.LookAroundArgumentsSchemaVersion,
-            PromptContract.LookAroundResultSchemaVersion)
+        new(FakePerceptionToolService.InspectStocksToolName, PromptContract.InspectStocksArgumentsSchemaVersion, PromptContract.InspectStocksResultSchemaVersion),
+        new(FakePerceptionToolService.ListDwarvesToolName, PromptContract.ListDwarvesArgumentsSchemaVersion, PromptContract.ListDwarvesResultSchemaVersion),
+        new(FakePerceptionToolService.InspectDwarfToolName, PromptContract.InspectDwarfArgumentsSchemaVersion, PromptContract.InspectDwarfResultSchemaVersion)
     ];
-    private static readonly PromptToolDefinition[] StockInspectionPromptTools =
+    private static readonly string[] NormalToolNames =
     [
-        new(
-            FakePerceptionToolService.InspectStocksToolName,
-            PromptContract.InspectStocksArgumentsSchemaVersion,
-            PromptContract.InspectStocksResultSchemaVersion)
+        FakePerceptionToolService.InspectStocksToolName,
+        FakePerceptionToolService.ListDwarvesToolName,
+        FakePerceptionToolService.InspectDwarfToolName
     ];
-    private static readonly PromptToolDefinition[] DwarfInspectionPromptTools =
-    [
-        new(
-            FakePerceptionToolService.ListDwarvesToolName,
-            PromptContract.ListDwarvesArgumentsSchemaVersion,
-            PromptContract.ListDwarvesResultSchemaVersion),
-        new(
-            FakePerceptionToolService.InspectDwarfToolName,
-            PromptContract.InspectDwarfArgumentsSchemaVersion,
-            PromptContract.InspectDwarfResultSchemaVersion)
-    ];
-    private static readonly PerceptionRoute LookAroundRoute = new(
-        LookAroundExecutionPolicy,
-        LookAroundPromptTools,
-        [FakePerceptionToolService.LookAroundToolName]);
-    private static readonly PerceptionRoute StockInspectionRoute = new(
-        StockInspectionExecutionPolicy,
-        StockInspectionPromptTools,
-        [FakePerceptionToolService.InspectStocksToolName]);
-    private static readonly PerceptionRoute DwarfInspectionRoute = new(
-        DwarfInspectionExecutionPolicy,
-        DwarfInspectionPromptTools,
-        [FakePerceptionToolService.ListDwarvesToolName, FakePerceptionToolService.InspectDwarfToolName]);
 
     private readonly DwarfQueryService _dwarfQueryService = dwarfQueryService ?? throw new ArgumentNullException(nameof(dwarfQueryService));
     private readonly IChatSessionStore _sessionStore = sessionStore ?? throw new ArgumentNullException(nameof(sessionStore));
-    private readonly IChatProvider _chatProvider = chatProvider ?? throw new ArgumentNullException(nameof(chatProvider));
     private readonly PromptAssembler _promptAssembler = promptAssembler ?? throw new ArgumentNullException(nameof(promptAssembler));
     private readonly ChatSessionOptions _options = options ?? throw new ArgumentNullException(nameof(options));
-    private readonly IDwarfAgent? _dwarfAgent = SelectAgent(dwarfAgents);
+    private readonly ISurroundingsInspectionService _surroundingsInspectionService = surroundingsInspectionService ?? throw new ArgumentNullException(nameof(surroundingsInspectionService));
+    private readonly IDwarfAgent _dwarfAgent = SelectAgent(dwarfAgents);
 
     public async Task<ChatSessionCreateResult> CreateSessionAsync(string dwarfId, CancellationToken cancellationToken)
     {
@@ -91,29 +46,22 @@ public sealed class ChatSessionService(
         }
 
         var listResult = await _dwarfQueryService.ListDwarvesAsync(cancellationToken);
-        var listed = listResult.List.Items.Any(item => item.Id == parsedDwarfId);
-        if (!listed)
+        if (!listResult.List.Items.Any(item => item.Id == parsedDwarfId))
         {
             throw new DwarfNotFoundException(parsedDwarfId);
         }
 
         var snapshotResult = await _dwarfQueryService.GetDwarfSnapshotAsync(parsedDwarfId, cancellationToken);
-        if (snapshotResult.Snapshot.RequestedDwarfId != parsedDwarfId
-            || snapshotResult.Snapshot.Identity.Id != parsedDwarfId)
+        if (snapshotResult.Snapshot.RequestedDwarfId != parsedDwarfId || snapshotResult.Snapshot.Identity.Id != parsedDwarfId)
         {
-            throw new DwarfFortressDataException(
-                DwarfFortressDataErrorCode.InconsistentData,
-                "The dwarf snapshot identity does not match the requested dwarf ID.");
+            throw new DwarfFortressDataException(DwarfFortressDataErrorCode.InconsistentData, "The dwarf snapshot identity does not match the requested dwarf ID.");
         }
 
         var session = _sessionStore.CreateSession(snapshotResult.Snapshot);
         return new ChatSessionCreateResult(session.SessionId, session.DwarfId.ToString());
     }
 
-    public async Task<ChatSendMessageResult> SendMessageAsync(
-        string sessionId,
-        string message,
-        CancellationToken cancellationToken)
+    public async Task<ChatSendMessageResult> SendMessageAsync(string sessionId, string message, CancellationToken cancellationToken)
     {
         var parsedSessionId = ParseSessionId(sessionId);
         if (!_sessionStore.TryGetSession(parsedSessionId, out var session) || session is null)
@@ -122,9 +70,7 @@ public sealed class ChatSessionService(
         }
 
         var normalizedMessage = NormalizeMessage(message);
-        using var activity = FortressSoulsTelemetry.ActivitySource.StartActivity(
-            FortressSoulsTelemetry.ChatTurnActivityName,
-            ActivityKind.Internal);
+        using var activity = FortressSoulsTelemetry.ActivitySource.StartActivity(FortressSoulsTelemetry.ChatTurnActivityName, ActivityKind.Internal);
         activity?.SetTag(FortressSoulsTelemetry.ChatSessionIdTagName, session.SessionId);
         activity?.SetTag(FortressSoulsTelemetry.DwarfIdTagName, session.DwarfId.ToString());
         activity?.SetTag(FortressSoulsTelemetry.SnapshotSchemaVersionTagName, session.Snapshot.SchemaVersion);
@@ -141,48 +87,66 @@ public sealed class ChatSessionService(
             }
 
             EnsureSnapshotIdentity(session);
-
-            if (TrySelectPerceptionRoute(normalizedMessage, out var route))
-            {
-                return await SendPerceptionMessageAsync(session, normalizedMessage, route, activity, cancellationToken);
-            }
-
-            var promptResult = _promptAssembler.Assemble(
-                new PromptInputs(
+            var scene = await AcquireCurrentSceneAsync(session, cancellationToken);
+            var promptResult = _promptAssembler.AssembleAgentTurn(
+                new AgentPromptInputs(
                     Snapshot: session.Snapshot,
                     Conversation: [.. session.Messages.Select(MapPromptConversationMessage)],
-                    PlayerMessage: normalizedMessage),
+                    PlayerMessage: normalizedMessage,
+                    EnabledTools: NormalPromptTools,
+                    StaticInterpretationGuide: PromptContract.DefaultStaticInterpretationGuide,
+                    CurrentScene: scene.Observation,
+                    CurrentSceneUnavailable: scene.Unavailable),
                 _options.PromptAssembly);
 
-            if (!promptResult.Succeeded || string.IsNullOrEmpty(promptResult.PromptText))
+            if (!promptResult.Succeeded || string.IsNullOrEmpty(promptResult.ProviderPromptText))
             {
                 activity?.SetTag(FortressSoulsTelemetry.OperationOutcomeTagName, FortressSoulsTelemetry.ErrorOutcome);
                 throw new ChatValidationException("prompt_assembly_failed", "Failed to assemble a valid chat prompt.");
             }
 
-            var promptId = CreatePromptId(promptResult.PromptText);
-            var providerResponse = await _chatProvider.SendAsync(
-                new ChatProviderRequest(promptResult.PromptText, _options.MaxAssistantMessageCharacters),
-                cancellationToken);
+            var promptId = CreatePromptId(promptResult.ProviderPromptText);
+            var stopwatch = Stopwatch.StartNew();
+            AgentTurnResult turnResult;
+            try
+            {
+                turnResult = await _dwarfAgent.RunTurnAsync(
+                    new AgentTurnRequest(
+                        new AgentSessionContext(session.SessionId, session.DwarfId, session.Snapshot, [.. session.Messages]),
+                        normalizedMessage,
+                        NormalExecutionPolicy,
+                        promptResult.ProviderPromptText)
+                    {
+                        EnabledToolNames = NormalToolNames
+                    },
+                    cancellationToken);
+            }
+            catch (AgentTurnException exception)
+            {
+                activity?.SetTag(FortressSoulsTelemetry.OperationOutcomeTagName, FortressSoulsTelemetry.ErrorOutcome);
+                throw MapAgentFailure(exception);
+            }
 
-            var assistantMessage = NormalizeAssistantMessage(providerResponse.MessageText);
-            AppendSuccessfulTurn(session, normalizedMessage, assistantMessage, promptResult.PromptText);
+            stopwatch.Stop();
+            var assistantMessage = NormalizeAssistantMessage(turnResult.AssistantMessage);
+            AppendSuccessfulTurn(session, normalizedMessage, assistantMessage, promptResult.SafePreviewText ?? CurrentSceneFormatter.CreateUnavailablePreview());
 
-            activity?.SetTag(FortressSoulsTelemetry.ProviderTypeTagName, providerResponse.ProviderType);
-            activity?.SetTag(FortressSoulsTelemetry.LlmModelTagName, providerResponse.Model);
+            activity?.SetTag(FortressSoulsTelemetry.ProviderTypeTagName, turnResult.ProviderType);
+            activity?.SetTag(FortressSoulsTelemetry.LlmModelTagName, turnResult.Model);
             activity?.SetTag(FortressSoulsTelemetry.PromptTemplateVersionTagName, promptResult.Diagnostics.TemplateVersion);
             activity?.SetTag(FortressSoulsTelemetry.OperationOutcomeTagName, FortressSoulsTelemetry.SuccessOutcome);
 
             return new ChatSendMessageResult(
-                SessionId: session.SessionId,
-                DwarfId: session.DwarfId.ToString(),
-                AssistantMessage: assistantMessage,
-                Diagnostics: new ChatTurnDiagnostics(
-                    Provider: providerResponse.ProviderType,
-                    Model: providerResponse.Model,
-                    DurationMs: Math.Max(0, (int)Math.Round(providerResponse.Duration.TotalMilliseconds, MidpointRounding.AwayFromZero)),
-                    PromptId: promptId),
-                ToolReceipts: []);
+                session.SessionId,
+                session.DwarfId.ToString(),
+                assistantMessage,
+                new ChatTurnDiagnostics(
+                    turnResult.ProviderType,
+                    turnResult.Model,
+                    Math.Max(0, (int)Math.Round(stopwatch.Elapsed.TotalMilliseconds, MidpointRounding.AwayFromZero)),
+                    promptId),
+                turnResult.ToolReceipts,
+                [new AgentObservationReceipt("current_scene", scene.Unavailable ? AgentToolOutcomes.Unavailable : AgentToolOutcomes.Success)]);
         }
         catch (OperationCanceledException)
         {
@@ -210,14 +174,50 @@ public sealed class ChatSessionService(
         {
             throw new ChatSessionNotFoundException(parsedSessionId);
         }
-
         if (string.IsNullOrEmpty(session.LastPromptPreview))
         {
             throw new ChatValidationException("prompt_preview_unavailable", "A prompt preview is not available for this session yet.");
         }
-
         return new ChatPromptPreviewResult(session.SessionId, session.DwarfId.ToString(), session.LastPromptPreview);
     }
+
+    private async Task<SceneAcquisition> AcquireCurrentSceneAsync(ChatSessionState session, CancellationToken cancellationToken)
+    {
+        using var activity = FortressSoulsTelemetry.ActivitySource.StartActivity(FortressSoulsTelemetry.PerceptionSceneActivityName, ActivityKind.Internal);
+        activity?.SetTag(FortressSoulsTelemetry.DwarfIdTagName, session.DwarfId.ToString());
+        try
+        {
+            var observation = await _surroundingsInspectionService.ObserveCurrentSceneAsync(session.DwarfId, cancellationToken);
+            observation.Validate();
+            activity?.SetTag(FortressSoulsTelemetry.PerceptionSceneSchemaVersionTagName, observation.SchemaVersion);
+            activity?.SetTag(FortressSoulsTelemetry.PerceptionSceneOutcomeTagName, FortressSoulsTelemetry.SuccessOutcome);
+            activity?.SetTag(FortressSoulsTelemetry.PerceptionSceneSiteWidthTagName, observation.SiteOverview.Width);
+            activity?.SetTag(FortressSoulsTelemetry.PerceptionSceneSiteHeightTagName, observation.SiteOverview.Height);
+            activity?.SetTag(FortressSoulsTelemetry.PerceptionSceneLocalWidthTagName, observation.LocalMap.Width);
+            activity?.SetTag(FortressSoulsTelemetry.PerceptionSceneLocalHeightTagName, observation.LocalMap.Height);
+            activity?.SetTag(FortressSoulsTelemetry.PerceptionSceneWarningCountTagName, observation.Warnings.Count);
+            return new SceneAcquisition(observation, false);
+        }
+        catch (DwarfFortressDataException exception) when (IsExpectedSceneUnavailable(exception.ErrorCode))
+        {
+            activity?.SetTag(FortressSoulsTelemetry.PerceptionSceneOutcomeTagName, AgentToolOutcomes.Unavailable);
+            activity?.SetTag(FortressSoulsTelemetry.PerceptionSceneErrorCategoryTagName, exception.ErrorCode.ToString());
+            return new SceneAcquisition(null, true);
+        }
+        catch (CurrentSceneValidationException exception)
+        {
+            activity?.SetTag(FortressSoulsTelemetry.PerceptionSceneOutcomeTagName, FortressSoulsTelemetry.ErrorOutcome);
+            activity?.SetTag(FortressSoulsTelemetry.PerceptionSceneErrorCategoryTagName, "invalid_data");
+            throw new DwarfFortressDataException(DwarfFortressDataErrorCode.InvalidData, "The current scene data is invalid.", exception);
+        }
+    }
+
+    private static bool IsExpectedSceneUnavailable(DwarfFortressDataErrorCode errorCode) =>
+        errorCode is DwarfFortressDataErrorCode.SourceUnavailable
+            or DwarfFortressDataErrorCode.DfHackUnavailable
+            or DwarfFortressDataErrorCode.DfHackExecutableUnavailable
+            or DwarfFortressDataErrorCode.DfHackInvocationTimedOut
+            or DwarfFortressDataErrorCode.MissingSource;
 
     private static void EnsureSnapshotIdentity(ChatSessionState session)
     {
@@ -227,88 +227,15 @@ public sealed class ChatSessionService(
         }
     }
 
-    private async Task<ChatSendMessageResult> SendPerceptionMessageAsync(
-        ChatSessionState session,
-        string normalizedMessage,
-        PerceptionRoute route,
-        Activity? activity,
-        CancellationToken cancellationToken)
-    {
-        var promptResult = _promptAssembler.AssembleAgentTurn(
-            new AgentPromptInputs(
-                Snapshot: session.Snapshot,
-                Conversation: [.. session.Messages.Select(MapPromptConversationMessage)],
-                PlayerMessage: normalizedMessage,
-                EnabledTools: route.PromptTools,
-                StaticInterpretationGuide: PromptContract.DefaultStaticInterpretationGuide),
-            _options.PromptAssembly);
-
-        if (!promptResult.Succeeded || string.IsNullOrEmpty(promptResult.PromptText))
-        {
-            activity?.SetTag(FortressSoulsTelemetry.OperationOutcomeTagName, FortressSoulsTelemetry.ErrorOutcome);
-            throw new ChatValidationException("prompt_assembly_failed", "Failed to assemble a valid chat prompt.");
-        }
-
-        var promptId = CreatePromptId(promptResult.PromptText);
-        var stopwatch = Stopwatch.StartNew();
-        AgentTurnResult turnResult;
-
-        try
-        {
-            turnResult = await _dwarfAgent!.RunTurnAsync(
-                new AgentTurnRequest(
-                    Session: new AgentSessionContext(
-                        SessionId: session.SessionId,
-                        DwarfId: session.DwarfId,
-                        Snapshot: session.Snapshot,
-                        Conversation: [.. session.Messages]),
-                    UserMessage: normalizedMessage,
-                    ExecutionPolicy: route.ExecutionPolicy,
-                    InitialPromptText: promptResult.PromptText)
-                {
-                    EnabledToolNames = route.EnabledToolNames
-                },
-                cancellationToken);
-        }
-        catch (AgentTurnException exception)
-        {
-            activity?.SetTag(FortressSoulsTelemetry.OperationOutcomeTagName, FortressSoulsTelemetry.ErrorOutcome);
-            throw MapAgentFailure(exception);
-        }
-
-        stopwatch.Stop();
-        var assistantMessage = NormalizeAssistantMessage(turnResult.AssistantMessage);
-        AppendSuccessfulTurn(session, normalizedMessage, assistantMessage, promptResult.PromptText);
-
-        activity?.SetTag(FortressSoulsTelemetry.ProviderTypeTagName, turnResult.ProviderType);
-        activity?.SetTag(FortressSoulsTelemetry.LlmModelTagName, turnResult.Model);
-        activity?.SetTag(FortressSoulsTelemetry.PromptTemplateVersionTagName, promptResult.Diagnostics.TemplateVersion);
-        activity?.SetTag(FortressSoulsTelemetry.OperationOutcomeTagName, FortressSoulsTelemetry.SuccessOutcome);
-
-        return new ChatSendMessageResult(
-            SessionId: session.SessionId,
-            DwarfId: session.DwarfId.ToString(),
-            AssistantMessage: assistantMessage,
-            Diagnostics: new ChatTurnDiagnostics(
-                Provider: turnResult.ProviderType,
-                Model: turnResult.Model,
-                DurationMs: Math.Max(0, (int)Math.Round(stopwatch.Elapsed.TotalMilliseconds, MidpointRounding.AwayFromZero)),
-                PromptId: promptId),
-            ToolReceipts: turnResult.ToolReceipts);
-    }
-
-    private void AppendSuccessfulTurn(ChatSessionState session, string playerMessage, string assistantMessage, string promptPreview)
+    private void AppendSuccessfulTurn(ChatSessionState session, string playerMessage, string assistantMessage, string safePreview)
     {
         session.Messages.Add(new ChatHistoryMessage(ChatRole.Player, playerMessage));
         session.Messages.Add(new ChatHistoryMessage(ChatRole.Assistant, assistantMessage));
-
         if (session.Messages.Count > _options.MaxHistoryMessages)
         {
-            var removeCount = session.Messages.Count - _options.MaxHistoryMessages;
-            session.Messages.RemoveRange(0, removeCount);
+            session.Messages.RemoveRange(0, session.Messages.Count - _options.MaxHistoryMessages);
         }
-
-        session.LastPromptPreview = promptPreview;
+        session.LastPromptPreview = safePreview;
     }
 
     private static PromptConversationMessage MapPromptConversationMessage(ChatHistoryMessage message) =>
@@ -319,160 +246,21 @@ public sealed class ChatSessionService(
             _ => throw new ChatValidationException("chat_role_invalid", "The chat message role is invalid.")
         };
 
-    private bool TrySelectPerceptionRoute(string normalizedMessage, out PerceptionRoute route)
-    {
-        route = null!;
-        if (_dwarfAgent is null)
-        {
-            return false;
-        }
-
-        if (LooksLikeOtherDwarfRequest(normalizedMessage))
-        {
-            route = DwarfInspectionRoute;
-            return true;
-        }
-
-        if (LooksLikeStockRequest(normalizedMessage))
-        {
-            route = StockInspectionRoute;
-            return true;
-        }
-
-        if (LooksLikeLookAroundRequest(normalizedMessage))
-        {
-            route = LookAroundRoute;
-            return true;
-        }
-
-        return false;
-    }
-
-    private static bool LooksLikeLookAroundRequest(string normalizedMessage)
-    {
-        var words = ExtractWords(normalizedMessage);
-        var mentionsLocalSurroundings = words.Contains("around")
-            || words.Contains("nearby")
-            || words.Any(word => word.StartsWith("surround", StringComparison.Ordinal));
-
-        if (!mentionsLocalSurroundings)
-        {
-            return false;
-        }
-
-        return (words.Contains("look") && words.Contains("around"))
-            || words.Contains("see")
-            || words.Contains("observe");
-    }
-
-    private static bool LooksLikeOtherDwarfRequest(string normalizedMessage)
-    {
-        var words = ExtractWords(normalizedMessage);
-        var mentionsAnotherDwarf = (words.Contains("another") || words.Contains("other")) && words.Contains("dwarf");
-        var mentionsSomeoneElse = words.Contains("someone") && words.Contains("else");
-
-        if (!mentionsAnotherDwarf && !mentionsSomeoneElse)
-        {
-            return false;
-        }
-
-        return words.Contains("about")
-            || words.Contains("tell")
-            || words.Contains("who")
-            || words.Contains("what")
-            || words.Contains("inspect")
-            || words.Contains("check");
-    }
-
-    private static bool LooksLikeStockRequest(string normalizedMessage)
-    {
-        var words = ExtractWords(normalizedMessage);
-        var mentionsStockDomain = words.Contains("stock")
-            || words.Contains("stocks")
-            || words.Contains("supply")
-            || words.Contains("supplies")
-            || words.Contains("drink")
-            || words.Contains("drinks")
-            || words.Contains("booze")
-            || words.Contains("beer")
-            || words.Contains("ale")
-            || words.Contains("food")
-            || words.Contains("meal")
-            || words.Contains("meals")
-            || words.Contains("wood")
-            || words.Contains("log")
-            || words.Contains("logs")
-            || words.Contains("stone")
-            || words.Contains("rock")
-            || words.Contains("rocks");
-
-        if (!mentionsStockDomain)
-        {
-            return false;
-        }
-
-        return words.Contains("how")
-            || words.Contains("much")
-            || words.Contains("many")
-            || words.Contains("count")
-            || words.Contains("have")
-            || words.Contains("check")
-            || words.Contains("inspect")
-            || words.Contains("stock")
-            || words.Contains("stocks")
-            || words.Contains("supply")
-            || words.Contains("supplies");
-    }
-
-    private static HashSet<string> ExtractWords(string value)
-    {
-        var words = new HashSet<string>(StringComparer.Ordinal);
-        var currentWord = new StringBuilder();
-
-        foreach (var character in value)
-        {
-            if (char.IsLetterOrDigit(character))
-            {
-                currentWord.Append(char.ToLowerInvariant(character));
-                continue;
-            }
-
-            FlushWord(currentWord, words);
-        }
-
-        FlushWord(currentWord, words);
-        return words;
-    }
-
-    private static void FlushWord(StringBuilder currentWord, HashSet<string> words)
-    {
-        if (currentWord.Length == 0)
-        {
-            return;
-        }
-
-        words.Add(currentWord.ToString());
-        currentWord.Clear();
-    }
-
     private string NormalizeMessage(string message)
     {
         if (message is null)
         {
             throw new ChatValidationException("invalid_message", "The chat message is required.");
         }
-
         var normalized = message.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Trim();
         if (string.IsNullOrWhiteSpace(normalized))
         {
             throw new ChatValidationException("invalid_message", "The chat message is required.");
         }
-
         if (normalized.Length > _options.MaxPlayerMessageCharacters)
         {
             throw new ChatValidationException("message_too_long", "The chat message exceeds the maximum allowed length.");
         }
-
         return normalized;
     }
 
@@ -482,16 +270,12 @@ public sealed class ChatSessionService(
         {
             throw new ChatProviderException(ChatProviderErrorCode.InvalidResponse, "The chat provider returned an invalid response.");
         }
-
         var normalized = assistantMessage.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Trim();
         if (normalized.Length == 0)
         {
             throw new ChatProviderException(ChatProviderErrorCode.InvalidResponse, "The chat provider returned an empty response.");
         }
-
-        return normalized.Length > _options.MaxAssistantMessageCharacters
-            ? normalized[.._options.MaxAssistantMessageCharacters]
-            : normalized;
+        return normalized.Length > _options.MaxAssistantMessageCharacters ? normalized[.._options.MaxAssistantMessageCharacters] : normalized;
     }
 
     private static bool TryParseDwarfId(string value, out DwarfId dwarfId)
@@ -510,13 +294,10 @@ public sealed class ChatSessionService(
 
     private static string ParseSessionId(string sessionId)
     {
-        if (string.IsNullOrWhiteSpace(sessionId)
-            || sessionId.Length != 13
-            || !sessionId.StartsWith("chat-", StringComparison.Ordinal))
+        if (string.IsNullOrWhiteSpace(sessionId) || sessionId.Length != 13 || !sessionId.StartsWith("chat-", StringComparison.Ordinal))
         {
             throw new ChatValidationException("invalid_session_id", "The provided chat session ID is invalid.");
         }
-
         for (var index = 5; index < sessionId.Length; index++)
         {
             if (!char.IsAsciiDigit(sessionId[index]))
@@ -524,14 +305,12 @@ public sealed class ChatSessionService(
                 throw new ChatValidationException("invalid_session_id", "The provided chat session ID is invalid.");
             }
         }
-
         return sessionId;
     }
 
     private static string CreatePromptId(string promptText)
     {
-        var bytes = Encoding.UTF8.GetBytes(promptText);
-        var hash = SHA256.HashData(bytes);
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(promptText));
         return $"prompt-{Convert.ToHexString(hash[..6]).ToLowerInvariant()}";
     }
 
@@ -543,20 +322,16 @@ public sealed class ChatSessionService(
             _ => new ChatProviderException(ChatProviderErrorCode.InvalidResponse, "The chat provider returned an invalid response.", exception)
         };
 
-    private static IDwarfAgent? SelectAgent(IEnumerable<IDwarfAgent> dwarfAgents)
+    private static IDwarfAgent SelectAgent(IEnumerable<IDwarfAgent> dwarfAgents)
     {
         ArgumentNullException.ThrowIfNull(dwarfAgents);
-
         return dwarfAgents.Take(2).ToArray() switch
         {
-            [] => null,
             [var agent] => agent,
+            [] => throw new InvalidOperationException("An IDwarfAgent registration is required for chat."),
             _ => throw new InvalidOperationException("Only one dwarf agent may be registered.")
         };
     }
 
-    private sealed record PerceptionRoute(
-        AgentExecutionPolicy ExecutionPolicy,
-        IReadOnlyList<PromptToolDefinition> PromptTools,
-        IReadOnlyList<string> EnabledToolNames);
+    private sealed record SceneAcquisition(CurrentSceneObservation? Observation, bool Unavailable);
 }

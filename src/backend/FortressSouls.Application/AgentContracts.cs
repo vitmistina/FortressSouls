@@ -146,6 +146,10 @@ public sealed record AgentTurnResult(
     string Model,
     IReadOnlyList<AgentToolReceipt> ToolReceipts);
 
+public sealed record AgentObservationReceipt(
+    string Capability,
+    string Outcome);
+
 public interface IDwarfAgent
 {
     Task<AgentTurnResult> RunTurnAsync(AgentTurnRequest request, CancellationToken cancellationToken);

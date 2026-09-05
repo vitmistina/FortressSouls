@@ -22,6 +22,184 @@ public sealed class DfHackSurroundingsInspectionService(
     private readonly IDfHackProcessRunner _processRunner = processRunner ?? throw new ArgumentNullException(nameof(processRunner));
     private readonly DfHackProcessAdapterOptions _options = options ?? throw new ArgumentNullException(nameof(options));
 
+    public Task<CurrentSceneObservation> ObserveCurrentSceneAsync(
+        DwarfId observerDwarfId,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        return ObserveCurrentSceneCoreAsync(observerDwarfId, cancellationToken);
+    }
+
+    private async Task<CurrentSceneObservation> ObserveCurrentSceneCoreAsync(
+        DwarfId observerDwarfId,
+        CancellationToken cancellationToken)
+    {
+        var result = await _processRunner.RunCommandAsync(
+            DfHackCommand.GetDwarfSurroundings,
+            [observerDwarfId.ToString()],
+            cancellationToken);
+
+        if (!result.IsSuccess)
+        {
+            var category = result.FailureCategory ?? DfHackProcessFailureCategory.Failed;
+            throw new DwarfFortressDataException(MapFailureCode(category), BuildSafeMessage(category));
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(
+                result.Stdout ?? string.Empty,
+                new JsonDocumentOptions
+                {
+                    AllowTrailingCommas = false,
+                    CommentHandling = JsonCommentHandling.Disallow,
+                    MaxDepth = _options.MaxJsonDepth
+                });
+
+            return MapCurrentScene(document.RootElement);
+        }
+        catch (JsonException exception)
+        {
+            throw new DwarfFortressDataException(
+                DwarfFortressDataErrorCode.MalformedJson,
+                "DFHack returned invalid current-scene JSON output.",
+                exception);
+        }
+    }
+
+    private static CurrentSceneObservation MapCurrentScene(JsonElement root)
+    {
+        if (ReadRequiredString(root, "schemaVersion") != "fortress-souls-dwarf-surroundings.v0.2.1")
+        {
+            throw new DwarfFortressDataException(
+                DwarfFortressDataErrorCode.InvalidData,
+                "DFHack returned an unsupported current-scene schema.");
+        }
+
+        if (root.TryGetProperty("error", out var errorElement)
+            && errorElement.ValueKind == JsonValueKind.Object)
+        {
+            throw new DwarfFortressDataException(
+                DwarfFortressDataErrorCode.InvalidData,
+                "DFHack returned an unavailable or invalid current-scene result.");
+        }
+
+        var observerElement = ReadRequiredObject(root, "observer");
+        var flagsElement = ReadRequiredObject(observerElement, "flags");
+        var outside = ReadRequiredBoolean(flagsElement, "outside");
+        var light = ReadRequiredBoolean(flagsElement, "light");
+        var subterranean = ReadRequiredBoolean(flagsElement, "subterranean");
+        var environment = ReadRequiredString(observerElement, "environment") switch
+        {
+            "above_ground_outdoors" => ObserverEnvironment.AboveGroundOutdoors,
+            "above_ground_sheltered" => ObserverEnvironment.AboveGroundSheltered,
+            "underground" => ObserverEnvironment.Underground,
+            "unknown" => ObserverEnvironment.Unknown,
+            _ => throw new DwarfFortressDataException(
+                DwarfFortressDataErrorCode.InvalidData,
+                "DFHack returned invalid observer environment data.")
+        };
+        var terrain = ReadRequiredObject(observerElement, "terrain");
+        var observer = new ObserverEnvironmentObservation(
+            environment,
+            outside,
+            light,
+            subterranean,
+            ReadRequiredString(terrain, "shape"),
+            ReadRequiredString(terrain, "material"),
+            TryReadOptionalString(observerElement, "structureClass"));
+
+        return new CurrentSceneObservation(
+            CurrentSceneSchema.Version,
+            ReadCurrentGameTime(root),
+            observer,
+            MapCurrentSceneMap(ReadRequiredObject(root, "siteOverview"), isSiteOverview: true),
+            MapCurrentSceneMap(ReadRequiredObject(root, "localMap"), isSiteOverview: false),
+            MapCurrentDetails(root),
+            ReadWarnings(root)).Validate();
+    }
+
+    private static PerceptionGameTime? ReadCurrentGameTime(JsonElement root)
+    {
+        if (!root.TryGetProperty("gameTime", out var element)
+            || element.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        return new PerceptionGameTime(
+            ReadRequiredInt32(element, "year"),
+            ReadRequiredInt32(element, "tick"));
+    }
+
+    private static PerceptionMap MapCurrentSceneMap(JsonElement root, bool isSiteOverview) =>
+        new(
+            ReadRequiredString(root, "projection"),
+            ReadRequiredInt32(root, "width"),
+            ReadRequiredInt32(root, "height"),
+            ReadRequiredBoolean(root, "sampled"),
+            ReadStringArray(root, "terrainRows"),
+            ReadStringArray(root, "featureRows"),
+            ReadStringArray(root, "materialRows"),
+            ReadStringArray(root, "unitRows"));
+
+    private static IReadOnlyList<PerceptionCellDetail> MapCurrentDetails(JsonElement root)
+    {
+        if (!root.TryGetProperty("details", out var detailsElement)
+            || detailsElement.ValueKind != JsonValueKind.Array)
+        {
+            return [];
+        }
+
+        return detailsElement.EnumerateArray().Select(detail =>
+        {
+            var items = detail.TryGetProperty("items", out var itemElement)
+                && itemElement.ValueKind == JsonValueKind.Object
+                ? MapCurrentItems(itemElement)
+                : null;
+            return new PerceptionCellDetail(
+                ReadRequiredInt32(detail, "dx"),
+                ReadRequiredInt32(detail, "dy"),
+                ReadOptionalNonNegativeInt32(detail, "citizenCount") ?? 0,
+                ReadOptionalNonNegativeInt32(detail, "otherUnitCount") ?? 0,
+                ReadOptionalNonNegativeInt32(detail, "invaderCount") ?? 0,
+                ReadOptionalNonNegativeInt32(detail, "dangerousUnitCount") ?? 0,
+                items,
+                TryReadOptionalString(detail, "structureClass"),
+                ReadOptionalNonNegativeInt32(detail, "liquidDepth"));
+        }).ToArray();
+    }
+
+    private static PerceptionItemSummary MapCurrentItems(JsonElement root)
+    {
+        var categories = ReadRequiredArray(root, "categories").EnumerateArray().Select(category =>
+            new PerceptionItemCategoryCount(
+                ReadRequiredString(category, "category"),
+                ReadRequiredInt32(category, "objectCount"),
+                ReadRequiredInt32(category, "stackQuantity")))
+            .ToArray();
+        return new PerceptionItemSummary(
+            ReadRequiredInt32(root, "objectCount"),
+            ReadRequiredInt32(root, "stackQuantity"),
+            categories);
+    }
+
+    private static string[] ReadStringArray(JsonElement root, string propertyName)
+    {
+        return ReadRequiredArray(root, propertyName).EnumerateArray().Select(value =>
+        {
+            if (value.ValueKind != JsonValueKind.String)
+            {
+                throw new DwarfFortressDataException(
+                    DwarfFortressDataErrorCode.InvalidData,
+                    "DFHack returned invalid current-scene rows.");
+            }
+
+            return value.GetString() ?? string.Empty;
+        }).ToArray();
+    }
+
     public async Task<LookAroundToolResult> InspectAroundAsync(
         DwarfId observerDwarfId,
         int requestedRadius,

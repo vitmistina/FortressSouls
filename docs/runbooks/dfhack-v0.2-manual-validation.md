@@ -111,6 +111,41 @@ The product result is intentionally filtered. It must not expose absolute map
 coordinates, z-levels, raw unit IDs, item lists, material details, or other
 research-only fields.
 
+## Validate the current scene
+
+The promoted current-scene query uses the same allowlisted command without a
+radius argument. Replace `6603` with a valid eligible dwarf ID:
+
+```powershell
+$dfhackRun = 'C:\Program Files (x86)\Steam\steamapps\common\DFHack\hack\dfhack-run.exe'
+$unitId = '6603'
+$out = "$env:TEMP\fortress-souls-current-scene-$unitId.json"
+$err = "$env:TEMP\fortress-souls-current-scene-$unitId.err.txt"
+
+& $dfhackRun fortress-souls/get-dwarf-surroundings $unitId > $out 2> $err
+$exit = $LASTEXITCODE
+
+"EXIT=$exit"
+$sample = Get-Content $out -Raw | ConvertFrom-Json
+$sample | Select-Object schemaVersion, observer, siteOverview, localMap, warnings | Format-List
+Get-Content $err -Raw
+```
+
+Expected:
+
+```text
+EXIT=0
+schemaVersion = fortress-souls-dwarf-surroundings.v0.2.1
+siteOverview.width = 24
+siteOverview.height = 12
+localMap.width = 33
+localMap.height = 33
+```
+
+The current-scene result remains bounded and redacts hidden cells to the
+canonical unknown/blank row symbols. It must not expose absolute map
+coordinates or raw unit IDs.
+
 ### Hidden-cell proof
 
 The retained hidden-cell proof for v0.2 was captured on 2026-06-23 from:

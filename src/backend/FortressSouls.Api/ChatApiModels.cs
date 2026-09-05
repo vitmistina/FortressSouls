@@ -16,12 +16,15 @@ public sealed record ChatDiagnosticsResponse(
 
 public sealed record ChatToolReceiptResponse(string Tool, string Outcome);
 
+public sealed record ChatObservationReceiptResponse(string Capability, string Outcome);
+
 public sealed record SendChatMessageResponse(
     string SessionId,
     string DwarfId,
     ChatAssistantMessageResponse AssistantMessage,
     ChatDiagnosticsResponse Diagnostics,
-    IReadOnlyList<ChatToolReceiptResponse> ToolReceipts);
+    IReadOnlyList<ChatToolReceiptResponse> ToolReceipts,
+    IReadOnlyList<ChatObservationReceiptResponse> ObservationReceipts);
 
 public sealed record PromptPreviewResponse(
     string SessionId,

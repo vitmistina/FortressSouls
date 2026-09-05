@@ -71,7 +71,8 @@ public static class LlmServiceCollectionExtensions
             sp.GetRequiredService<Microsoft.Extensions.AI.IChatClient>(),
             sp.GetRequiredService<IAgentToolRegistry>(),
             sp.GetRequiredService<LlmProviderOptions>(),
-            sp.GetRequiredService<ObservabilityDiagnosticsOptions>()));
+            sp.GetRequiredService<ObservabilityDiagnosticsOptions>(),
+            sp.GetRequiredService<IChatProviderStatusRecorder>()));
 
         return services;
     }

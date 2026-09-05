@@ -355,7 +355,8 @@ public sealed class FakePerceptionToolService
 
 public sealed record FakePerceptionFixtureSet(
     FakeLookAroundFixture LookAround,
-    FakeStockFixture Stocks)
+    FakeStockFixture Stocks,
+    CurrentSceneObservation? CurrentScene = null)
 {
     public static FakePerceptionFixtureSet Default { get; } = new(
         LookAround: new FakeLookAroundFixture(
@@ -392,7 +393,7 @@ public sealed record FakePerceptionFixtureSet(
             ],
             Legend: ["building", "floor", "ramp", "wall"],
             Warnings: Array.Empty<string>()),
-        Stocks: new FakeStockFixture(
+            Stocks: new FakeStockFixture(
             SchemaVersion: "fortress-souls.inspect-stocks-result.v0.2",
             GameTime: "125-03-12T08:15",
             Categories:
@@ -402,7 +403,114 @@ public sealed record FakePerceptionFixtureSet(
                 new StockCategory("wood", 48),
                 new StockCategory("stone", 128)
             ],
-            Warnings: Array.Empty<string>()));
+            Warnings: Array.Empty<string>()),
+        CurrentScene: FakeCurrentSceneFixture.Default);
+}
+
+public static class FakeCurrentSceneFixture
+{
+    public static CurrentSceneObservation Default { get; } = Create();
+
+    private static CurrentSceneObservation Create()
+    {
+        const int siteWidth = 24;
+        const int siteHeight = 12;
+        const int localSize = 33;
+
+        var siteTerrain = CreateRows(siteWidth, siteHeight, '.');
+        var siteFeatures = CreateRows(siteWidth, siteHeight, ' ');
+        var siteMaterials = CreateRows(siteWidth, siteHeight, 'g');
+        var siteUnits = CreateRows(siteWidth, siteHeight, ' ');
+        Set(siteFeatures, 4, 10, 'T');
+        Set(siteFeatures, 4, 11, 'W');
+        Set(siteFeatures, 4, 12, '~');
+        Set(siteFeatures, 5, 12, '~');
+        Set(siteFeatures, 6, 12, '~');
+        Set(siteUnits, 4, 11, '@');
+
+        var localTerrain = CreateRows(localSize, localSize, '.');
+        var localFeatures = CreateRows(localSize, localSize, ' ');
+        var localMaterials = CreateRows(localSize, localSize, 'g');
+        var localUnits = CreateRows(localSize, localSize, ' ');
+        Set(localUnits, 16, 16, '@');
+        Set(localUnits, 12, 15, 'd');
+        Set(localUnits, 12, 17, 'd');
+        Set(localFeatures, 17, 15, 'W');
+        Set(localFeatures, 17, 16, 'W');
+        Set(localFeatures, 17, 17, 'W');
+        Set(localFeatures, 14, 21, '*');
+        Set(localTerrain, 15, 4, '#');
+        Set(localTerrain, 15, 5, '#');
+        Set(localTerrain, 15, 6, '#');
+        Set(localFeatures, 10, 8, '~');
+        Set(localFeatures, 11, 8, '~');
+
+        for (var column = 0; column < localSize; column++)
+        {
+            SetHidden(localTerrain, localFeatures, localMaterials, localUnits, 0, column);
+        }
+
+        return new CurrentSceneObservation(
+            CurrentSceneSchema.Version,
+            new PerceptionGameTime(100, 16801),
+            new ObserverEnvironmentObservation(
+                ObserverEnvironment.AboveGroundOutdoors,
+                Outside: true,
+                Light: true,
+                Subterranean: false,
+                TerrainShape: "floor",
+                TerrainMaterial: "grass",
+                StructureClass: null),
+            new PerceptionMap(
+                "surface_overview",
+                siteWidth,
+                siteHeight,
+                Sampled: true,
+                siteTerrain,
+                siteFeatures,
+                siteMaterials,
+                siteUnits),
+            new PerceptionMap(
+                "current_level",
+                localSize,
+                localSize,
+                Sampled: false,
+                localTerrain,
+                localFeatures,
+                localMaterials,
+                localUnits),
+            [
+                new PerceptionCellDetail(0, 1, 0, 0, 0, 0, null, "wagon", null),
+                new PerceptionCellDetail(1, 1, 0, 0, 0, 0, null, "wagon", null),
+                new PerceptionCellDetail(-1, -4, 2, 0, 0, 0, null, null, null),
+                new PerceptionCellDetail(5, -2, 0, 0, 0, 0,
+                    new PerceptionItemSummary(7, 7, [
+                        new PerceptionItemCategoryCount("wood", 4, 4),
+                        new PerceptionItemCategoryCount("tool", 2, 2),
+                        new PerceptionItemCategoryCount("other", 1, 1)]),
+                    null,
+                    null)
+            ],
+            ["LOCAL_TERRAIN_FALLBACK_USED"]);
+    }
+
+    private static string[] CreateRows(int width, int height, char value) =>
+        Enumerable.Repeat(new string(value, width), height).ToArray();
+
+    private static void Set(string[] rows, int row, int column, char value)
+    {
+        var characters = rows[row].ToCharArray();
+        characters[column] = value;
+        rows[row] = new string(characters);
+    }
+
+    private static void SetHidden(string[] terrain, string[] features, string[] materials, string[] units, int row, int column)
+    {
+        Set(terrain, row, column, '?');
+        Set(features, row, column, ' ');
+        Set(materials, row, column, '?');
+        Set(units, row, column, ' ');
+    }
 }
 
 public sealed record FakeLookAroundFixture(

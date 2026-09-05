@@ -26,6 +26,10 @@ public sealed class FakeToolLoopChatClient : IChatClient
         var latestToolResult = messageList
             .Reverse()
             .FirstOrDefault(message => message.Role == AiChatRole.Tool);
+        var currentPerception = messageList
+            .FirstOrDefault(message => message.Role == AiChatRole.System && message.Text.Contains("CURRENT_PERCEPTION", StringComparison.Ordinal))
+            ?.Text
+            ?? options?.Instructions;
 
         if (latestToolResult is null)
         {
@@ -66,7 +70,14 @@ public sealed class FakeToolLoopChatClient : IChatClient
                         new Dictionary<string, object?>
                         {
                             ["radius"] = 1
-                        })])));
+                })])));
+            }
+
+            if (currentPerception is not null)
+            {
+                return Task.FromResult(new ChatResponse(new ChatMessage(
+                    AiChatRole.Assistant,
+                    BuildCurrentSceneReply(currentPerception))));
             }
 
             return Task.FromResult(new ChatResponse(new ChatMessage(
@@ -428,6 +439,25 @@ public sealed class FakeToolLoopChatClient : IChatClient
         }
 
         return $"{name}, a {profession}, is {work}.";
+    }
+
+    private static string BuildCurrentSceneReply(string currentPerception)
+    {
+        if (currentPerception.Contains("CURRENT_PERCEPTION unavailable", StringComparison.Ordinal)
+            || currentPerception.Contains("outcome=unavailable", StringComparison.Ordinal))
+        {
+            return "I cannot tell what surrounds me right now; the current scene is unavailable.";
+        }
+
+        var environment = currentPerception.Contains("environment=above_ground_sheltered", StringComparison.Ordinal)
+            ? "sheltered above ground"
+            : currentPerception.Contains("environment=underground", StringComparison.Ordinal)
+                ? "underground"
+                : currentPerception.Contains("environment=above_ground_outdoors", StringComparison.Ordinal)
+                    ? "above ground outdoors"
+                    : "somewhere uncertain";
+
+        return $"I am {environment}. The wagon is close by, and I can see citizens nearby.";
     }
 
     private static string BuildGroundedReply(InspectStocksToolResult stockResult)
