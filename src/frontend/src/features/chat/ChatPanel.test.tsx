@@ -30,7 +30,8 @@ describe("ChatPanel", () => {
         durationMs: 25,
         promptId: "prompt-abc",
       },
-      toolReceipts: [{ tool: "look_around", outcome: "success" }],
+      toolReceipts: [],
+      observationReceipts: [{ capability: "current_scene", outcome: "success" as const }],
     }));
 
     render(
@@ -49,8 +50,8 @@ describe("ChatPanel", () => {
 
     expect(await screen.findByText("How is the mine?")).toBeInTheDocument();
     expect(await screen.findByText(/Keep the pick sharp/i)).toBeInTheDocument();
-    expect(screen.getByText("Perception")).toBeInTheDocument();
-    expect(screen.getByText("look_around")).toBeInTheDocument();
+    expect(screen.getByText("Current scene")).toBeInTheDocument();
+    expect(screen.getByText("Scene")).toBeInTheDocument();
     expect(screen.getByText("Success")).toBeInTheDocument();
     expect(screen.getByText(/Provider:/)).toBeInTheDocument();
     expect(messageInput).toHaveValue("");
@@ -391,5 +392,55 @@ describe("ChatPanel", () => {
     expect(screen.getByText("Budget exhausted")).toBeInTheDocument();
     expect(screen.queryByText("\"categories\"")).not.toBeInTheDocument();
     expect(screen.queryByText("radius")).not.toBeInTheDocument();
+  });
+
+  it("renders an unavailable scene separately from optional tool receipts", async () => {
+    render(
+      <ChatPanel
+        selectedDwarfId="4101"
+        selectedDwarfName="Iden Torrentshade"
+        showDevelopmentPreview={false}
+        createSession={async () => ({ sessionId: "chat-00000001", dwarfId: "4101" })}
+        sendMessage={async () => ({
+          sessionId: "chat-00000001",
+          dwarfId: "4101",
+          assistantMessage: { role: "assistant" as const, text: "I cannot see the fortress right now." },
+          diagnostics: { provider: "Fake", model: "fake-dwarf", durationMs: 14, promptId: "prompt-unavailable" },
+          toolReceipts: [],
+          observationReceipts: [{ capability: "current_scene", outcome: "unavailable" }],
+        })}
+      />,
+    );
+
+    const messageInput = await screen.findByLabelText("Message");
+    fireEvent.change(messageInput, { target: { value: "What is around us?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(await screen.findByText("I cannot see the fortress right now.")).toBeInTheDocument();
+    expect(screen.getByText("Current scene")).toBeInTheDocument();
+    expect(screen.getByText("Unavailable")).toBeInTheDocument();
+    expect(screen.queryByText("Success")).not.toBeInTheDocument();
+  });
+
+  it("does not add a successful receipt when sending fails", async () => {
+    render(
+      <ChatPanel
+        selectedDwarfId="4101"
+        selectedDwarfName="Iden Torrentshade"
+        showDevelopmentPreview={false}
+        createSession={async () => ({ sessionId: "chat-00000001", dwarfId: "4101" })}
+        sendMessage={async () => {
+          throw new ChatApiError("The chat provider is unavailable right now.", 503, "chat_provider_unavailable");
+        }}
+      />,
+    );
+
+    const messageInput = await screen.findByLabelText("Message");
+    fireEvent.change(messageInput, { target: { value: "What is around us?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("The chat provider is unavailable right now.");
+    expect(screen.queryByText("Current scene")).not.toBeInTheDocument();
+    expect(screen.queryByText("Success")).not.toBeInTheDocument();
   });
 });

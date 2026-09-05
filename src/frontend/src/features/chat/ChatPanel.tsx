@@ -17,6 +17,7 @@ interface ChatTurn {
   text: string;
   diagnostics?: SendChatMessageResult["diagnostics"];
   toolReceipts?: SendChatMessageResult["toolReceipts"];
+  observationReceipts?: SendChatMessageResult["observationReceipts"];
 }
 
 interface ChatSessionStateIdle {
@@ -219,6 +220,7 @@ export function ChatPanel({
             text: result.assistantMessage.text,
             diagnostics: result.diagnostics,
             toolReceipts: result.toolReceipts,
+            observationReceipts: result.observationReceipts,
           },
         ]);
         setDraft("");
@@ -354,6 +356,21 @@ export function ChatPanel({
                     <li key={`${turn.id}-receipt-${index}`}>
                       <span className={`receipt-chip ${receiptClassName(receipt.outcome)}`}>
                         <span className="receipt-chip__tool">{getReceiptToolLabel(receipt.tool)}</span>
+                        <span className="receipt-chip__outcome">{getReceiptOutcomeLabel(receipt.outcome)}</span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+            {turn.observationReceipts && turn.observationReceipts.length > 0 ? (
+              <div className="chat-turn__receipts">
+                <p className="chat-turn__receipt-label">Current scene</p>
+                <ul className="chat-turn__receipt-list" aria-label="Current scene receipts">
+                  {turn.observationReceipts.map((receipt, index) => (
+                    <li key={`${turn.id}-scene-receipt-${index}`}>
+                      <span className={`receipt-chip ${receiptClassName(receipt.outcome)}`}>
+                        <span className="receipt-chip__tool">{getObservationLabel(receipt.capability)}</span>
                         <span className="receipt-chip__outcome">{getReceiptOutcomeLabel(receipt.outcome)}</span>
                       </span>
                     </li>
@@ -527,6 +544,10 @@ function getReceiptOutcomeLabel(outcome: string): string {
     default:
       return "Unknown outcome";
   }
+}
+
+function getObservationLabel(capability: string): string {
+  return capability === "current_scene" ? "Scene" : "Observation";
 }
 
 function receiptClassName(outcome: ChatToolReceipt["outcome"]): string {

@@ -16,6 +16,11 @@ export interface ChatToolReceipt {
   outcome: string;
 }
 
+export interface ChatObservationReceipt {
+  capability: string;
+  outcome: "success" | "unavailable";
+}
+
 export interface SendChatMessageResult {
   sessionId: string;
   dwarfId: string;
@@ -25,6 +30,7 @@ export interface SendChatMessageResult {
   };
   diagnostics: SendChatMessageDiagnostics;
   toolReceipts: ChatToolReceipt[];
+  observationReceipts?: ChatObservationReceipt[];
   correlationId?: string;
 }
 
@@ -142,7 +148,13 @@ function parseCreateSessionResponse(value: unknown): CreateChatSessionResult {
 }
 
 function parseSendMessageResponse(value: unknown): SendChatMessageResult {
-  if (!isRecord(value) || !isRecord(value.assistantMessage) || !isRecord(value.diagnostics) || !Array.isArray(value.toolReceipts)) {
+  if (
+    !isRecord(value) ||
+    !isRecord(value.assistantMessage) ||
+    !isRecord(value.diagnostics) ||
+    !Array.isArray(value.toolReceipts) ||
+    !Array.isArray(value.observationReceipts)
+  ) {
     throw new Error("Backend chat API returned an invalid response.");
   }
 
@@ -160,7 +172,22 @@ function parseSendMessageResponse(value: unknown): SendChatMessageResult {
       promptId: requireStringField(value.diagnostics, "promptId"),
     },
     toolReceipts: value.toolReceipts.map((receipt) => parseToolReceipt(receipt)),
+    observationReceipts: value.observationReceipts.map((receipt) => parseObservationReceipt(receipt)),
   };
+}
+
+function parseObservationReceipt(value: unknown): ChatObservationReceipt {
+  if (!isRecord(value)) {
+    throw new Error("Backend chat API returned an invalid response.");
+  }
+
+  const capability = requireStringField(value, "capability");
+  const outcome = requireStringField(value, "outcome");
+  if (outcome !== "success" && outcome !== "unavailable") {
+    throw new Error("Backend chat API returned an invalid response.");
+  }
+
+  return { capability, outcome };
 }
 
 function parseToolReceipt(value: unknown): ChatToolReceipt {
